@@ -4,23 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-CyberLife: a text-based cyberpunk life sim. Pure Python 3.10+ stdlib, no dependencies, no build step, no test suite yet.
+CyberLife: a text-based cyberpunk life sim. Pure Python 3.10+ stdlib at runtime, no build step. pytest for tests.
 
 ## Commands
 
 ```bash
-python3 -m cyberlife              # play
-python3 -m cyberlife --seed 7     # repeatable RNG for reproducing a bug
-NO_COLOR=1 python3 -m cyberlife   # plain output (colors also auto-disable when stdout isn't a tty)
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # one-time setup (pytest is the only dev dep)
+.venv/bin/pytest                                # full suite (~0.2s)
+.venv/bin/pytest tests/test_actions.py          # one file
+.venv/bin/pytest -k "gig"                       # by name
+.venv/bin/pytest -k "not random_play"           # skip the 40-seed fuzz
+python3 -m cyberlife                            # play (stdlib only, no venv needed)
+python3 -m cyberlife --seed 7                   # repeatable RNG for reproducing a bug
+NO_COLOR=1 python3 -m cyberlife                 # plain output (also auto when stdout isn't a tty)
 ```
 
-Scripted playthrough (menus are numbered; blank line = the `[enter]` pause):
+## Testing
 
-```bash
-printf 'Kai\nGhost\n1\n\n1\n1\n4\n9\n\n' | python3 -m cyberlife --seed 7
-```
+**Every feature or behavior change ships with tests in the same commit.** New action → `tests/test_actions.py`; new event → `tests/test_events.py` (the parametrized `test_each_handler_runs_when_eligible` picks it up automatically, but add a targeted test for its choices/outcomes); loop/rent/ending changes → `tests/test_game.py`; new content tables → `tests/test_data.py` sanity checks.
 
-There are no unit tests. The way the loop has been verified so far is a random-input fuzzer: monkeypatch `builtins.input` (answer `y`/`n` when the prompt contains `[y/n]`, a digit 1-9 when it contains `> `, else `""`), set `cyberlife.ui.USE_COLOR = False`, call `cyberlife.game.run()` a few hundred times under `contextlib.redirect_stdout`, and assert no exceptions and that every run prints an ending. Re-run something like that after touching the loop or adding actions/events.
+Fixtures in `tests/conftest.py`:
+- `player` — a Street Kid with 1000¢ and default stats.
+- `answers("1", "y", ...)` — scripts user input by replacing `ui._read`; raises if the code asks for more input than scripted, so it also asserts prompt count. Menu numbers are positional, and the day menu renumbers when "Quit job" disappears.
+- `force_roll(0.0 | 0.99)` — pins `random.random()` so success/failure branches are deterministic. `random.randint`/`random.choice` are unaffected (the autouse `seeded` fixture seeds them).
+
+`test_random_play_always_reaches_an_ending` is the fuzz test: 40 seeds of random input through `game.run()`, asserting no crash and an ending. It's what caught `pause()` bypassing `_read`.
 
 ## Architecture
 

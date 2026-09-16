@@ -36,13 +36,6 @@ def header(title):
     hr()
 
 
-def pause():
-    try:
-        input(dim("[enter] "))
-    except EOFError:
-        raise QuitGame
-
-
 def _read(prompt):
     try:
         raw = input(prompt).strip()
@@ -51,6 +44,10 @@ def _read(prompt):
     if raw.lower() in ("q", "quit", "exit"):
         raise QuitGame
     return raw
+
+
+def pause():
+    _read(dim("[enter] "))
 
 
 def bar(value, maximum, width=12, color=green):

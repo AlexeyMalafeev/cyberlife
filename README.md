@@ -10,6 +10,14 @@ python3 -m cyberlife
 
 Requires Python 3.10+. No dependencies. Add `--seed N` for a repeatable run, `q` at any prompt to quit. Set `NO_COLOR=1` to disable ANSI colors.
 
+## Develop
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/pytest
+```
+
 ## How it plays
 
 Each day you get **3 action points** (more with the right chrome). Spend them on:
@@ -40,6 +48,7 @@ cyberlife/
   data.py       all content: jobs, gigs, cyberware, backgrounds, flavor text
   player.py     Player state + derived stats (cyberware bonuses)
   ui.py         colors, menus, prompts
+tests/          pytest suite (fixtures in conftest.py)
 ```
 
 Tuning knobs (visa cost, legend cred, rent cadence) live at the top of `data.py`; adding a job, gig, or implant is a one-line entry in the same file.

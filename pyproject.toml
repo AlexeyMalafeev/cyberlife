@@ -1,0 +1,14 @@
+[project]
+name = "cyberlife"
+version = "0.1.0"
+description = "A text-based cyberpunk life sim"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]
