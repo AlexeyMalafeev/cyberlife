@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-CyberLife: a text-based cyberpunk life sim. Pure Python 3.10+ stdlib at runtime, no build step. pytest for tests.
+CyberLife: a text-based cyberpunk life sim. Pure Python 3.10+ stdlib at runtime, no build step. pytest for tests. Optional NPC dialog talks HTTP to an external model server (`--llm mlx`); the game never imports ML libraries.
 
 ## Commands
 
@@ -28,6 +28,8 @@ Fixtures in `tests/conftest.py`:
   touch the real `~/.cyberlife`; the fuzz test picks menu entries at random and will hit "Save game".
 - `player` — a Street Kid with 1000¢ and default stats.
 - `answers("1", "y", ...)` — scripts user input by replacing `ui._read` (the autouse `line_input` fixture turns off single-keypress mode so menus read through it too); raises if the code asks for more input than scripted, so it also asserts prompt count. Menu numbers are positional, and the day menu renumbers when "Quit job" disappears.
+- `canned_dialog` (autouse) resets `llm.backend` to stock lines; `no_network` (autouse) makes
+  any socket open fail the test. Test dialog backends with a stub backend or a fake `post=`.
 - `force_roll(0.0 | 0.99)` — pins `random.random()` so success/failure branches are deterministic. `random.randint`/`random.choice` are unaffected (the autouse `seeded` fixture seeds them).
 
 `test_random_play_always_reaches_an_ending` is the fuzz test: 40 seeds of random input through `game.run()`, asserting no crash and an ending. It's what caught `pause()` bypassing `_read`.
@@ -69,6 +71,12 @@ Everything is a function that takes the `Player` dataclass and mutates it; there
   changes meaning**, not when one is merely added.
 - **`Player.job_id`** is the stored field; `player.job` is a read-only property resolving it
   through `data.job_by_id`. Assign `job_id`, never `job`.
+- **`llm.py`** voices NPCs. Call sites use `llm.speak(npc_id, player, situation, **ctx)`;
+  personas and per-situation prompts + stock lines live in `data.NPCS`. Decide outcomes
+  *before* speaking and describe them in the situation — the model narrates, never decides.
+  `respond()` always draws the stock line from `random` first so seeds are backend-independent,
+  and drops model lines that mention numbers. Backends implement `complete(messages) -> str |
+  None`; `ChatCompletionsBackend` is the OpenAI-style HTTP base that `MlxBackend` subclasses.
 - **`ui.py`** owns all input. Text prompts go through `_read`, which raises `QuitGame` on `q`/EOF; `game.run` catches it. Menus, y/n and `pause()` go through `_read_key`, which reads one raw keypress on a real terminal (`RAW_KEYS`) and otherwise falls back to `_read`. Menu keys come from `MENU_KEYS` (1-9, 0, then letters without `q`). Don't call `input()` directly elsewhere or the fuzzer/quit handling breaks.
 
 ## Balance notes

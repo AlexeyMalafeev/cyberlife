@@ -31,3 +31,13 @@ def test_gigs_well_formed():
 def test_backgrounds_cover_every_skill():
     for bg in data.BACKGROUNDS.values():
         assert set(bg["skills"]) == SKILLS
+
+
+def test_npcs_well_formed():
+    for npc_id, npc in data.NPCS.items():
+        assert npc["name"] and npc["role"] and npc["disposition"], npc_id
+        assert 2 <= len(npc["facts"]) <= 3, npc_id
+        assert npc["situations"], npc_id
+        for key, sit in npc["situations"].items():
+            assert sit["prompt"], (npc_id, key)
+            assert len(sit["canned"]) >= 2, (npc_id, key)

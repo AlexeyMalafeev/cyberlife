@@ -1,7 +1,7 @@
 """Things the player can spend action points on during the day."""
 import random
 
-from . import data
+from . import data, llm
 from .ui import say, dim, green, red, yellow, cyan, neon, bold, menu, ask_yes_no, header
 
 
@@ -77,7 +77,8 @@ def quit_job(player):
 # -- Gigs -------------------------------------------------------------
 
 def gig(player):
-    say(dim("Your fixer, Marrow, pings you a list. No guarantees."))
+    say(dim("Your fixer pings you a list."))
+    llm.speak("marrow", player, "gig_list")
     options = []
     for g in data.GIGS:
         chance = _gig_chance(player, g)
@@ -159,6 +160,7 @@ def bar(player):
         return False
     player.credits -= cost
     say(random.choice(data.BAR_FLAVOR))
+    llm.speak("juno", player, "pour")
     player.stress -= 12
     cred = 1 if random.random() < 0.3 else 0
     player.cred += cred
@@ -166,6 +168,7 @@ def bar(player):
     roll = random.random()
     if roll < 0.15:
         say(cyan("A stranger buys you a round and talks. You listen. You learn."))
+        llm.speak("stranger", player, "advice")
         player.skills["charm"] += 1
         _report(_delta("charm", 1))
     elif roll < 0.25:
@@ -184,7 +187,7 @@ def bar(player):
 
 def ripperdoc(player):
     header("Doc Saito's Chrome Clinic")
-    say(dim("\"Sit. Don't touch anything. What do you want to lose today?\""))
+    llm.speak("saito", player, "greeting")
     while True:
         options = []
         for cw in data.CYBERWARE:
@@ -215,7 +218,8 @@ def ripperdoc(player):
             continue
         say(dim(cw["blurb"]))
         if player.humanity - cw["humanity"] <= 20:
-            say(red("Saito frowns. \"Any more chrome and I'm not sure who wakes up.\""))
+            say(red("Saito frowns."))
+            llm.speak("saito", player, "humanity_warning")
         if not ask_yes_no(f"Install {cw['name']} for {cw['cost']}¢?"):
             continue
         player.credits -= cw["cost"]
@@ -229,15 +233,16 @@ def ripperdoc(player):
 
 def fixer(player):
     header("Marrow's Booth, back of the Neon Lotus")
-    say(dim("\"You want out? Everybody wants out. Question is what you'll pay.\""))
+    can_afford = player.credits >= data.VISA_COST
+    llm.speak("marrow", player, "booth_ready" if can_afford else "booth_broke")
     say(f"  Forged orbital visa: {yellow(str(data.VISA_COST) + '¢')}   (you have {player.credits}¢)")
     say(f"  Or make a name for yourself: street cred {player.cred}/{data.LEGEND_CRED}")
     say()
-    if player.credits >= data.VISA_COST:
+    if can_afford:
         if ask_yes_no("Buy the visa and leave the city for good?"):
             player.credits -= data.VISA_COST
             player.won = "visa"
             return True
     else:
-        say(dim("Marrow laughs. \"Come back when you're serious.\""))
+        say(dim("Marrow waves you off."))
     return False

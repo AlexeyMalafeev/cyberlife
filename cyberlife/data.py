@@ -83,6 +83,123 @@ BAR_FLAVOR = [
 ]
 
 
+# NPCs who talk. The persona card (role, disposition, facts) is what a dialog model sees;
+# each situation carries a prompt describing what the code already decided, plus stock lines
+# used when no model is configured or it fails. Both are str.format()ed with call-site context;
+# keep amounts out of prompts -- model lines that mention numbers are thrown away (llm.py).
+NPCS = {
+    "marrow": {
+        "name": "Marrow",
+        "role": "a fixer who works out of a booth at the back of the Neon Lotus",
+        "disposition": "dry, amused, transactional; respects results, not talk; calls everyone 'kid'",
+        "facts": ["Sells forged orbital visas for 15,000 credits.",
+                  "Nobody has ever seen Marrow stand up.",
+                  "Keeps a paper ledger because paper can't be hacked."],
+        "situations": {
+            "booth_broke": {
+                "prompt": "The player comes to your booth asking about a way out of the city, "
+                          "but can't afford the visa yet. Brush them off.",
+                "canned": ["You want out? Everybody wants out. Come back when you're serious, kid.",
+                           "Fifteen grand, kid. I don't do layaway.",
+                           "Nice to see you. Nicer to see your money. Neither's here yet."],
+            },
+            "booth_ready": {
+                "prompt": "The player comes to your booth and has enough for the visa. "
+                          "You're ready to sell if they are.",
+                "canned": ["Well, look who's serious. The visa's real, kid. Mostly.",
+                           "Money talks. Yours is saying 'goodbye, Neo-Vasilisk.'",
+                           "You actually saved it. Most don't live that long."],
+            },
+            "gig_list": {
+                "prompt": "You're sending the player today's list of gigs. "
+                          "No guarantees about any of them.",
+                "canned": ["Here's what's on the board. No guarantees, no refunds.",
+                           "Fresh list. Try not to die on any of them, it's bad for business.",
+                           "Pick one. Don't make me regret the referral."],
+            },
+            "night_ping": {
+                "prompt": "It's 03:12. You're pinging the player about a quick ten-minute job "
+                          "and need a yes or no right now.",
+                "canned": ["Quick one. Ten minutes. Yes or no?",
+                           "You up? Course you are. Ten minutes of work, now or never.",
+                           "Job just fell in my lap. Ten minutes. Clock's running, kid."],
+            },
+        },
+    },
+    "saito": {
+        "name": "Doc Saito",
+        "role": "a back-alley ripperdoc who runs a cramped chrome clinic",
+        "disposition": "curt, clinical, tired; privately worried about the people she cuts open",
+        "facts": ["Lost her medical licence years ago and doesn't miss it.",
+                  "Has seen too many customers go cyberpsycho.",
+                  "Hums old pop songs while she operates."],
+        "situations": {
+            "greeting": {
+                "prompt": "The player walks into your clinic. Greet them the way you greet "
+                          "everyone who might want chrome.",
+                "canned": ["Sit. Don't touch anything. What do you want to lose today?",
+                           "Wipe your feet. You're tracking the street onto my floor.",
+                           "Back again. Let's see what's left of you."],
+            },
+            "humanity_warning": {
+                "prompt": "The player wants another implant, but it would take them dangerously "
+                          "close to cyberpsychosis. Warn them. You'll still do it if they insist.",
+                "canned": ["Any more chrome and I'm not sure who wakes up.",
+                           "I can install it. I can't promise you'll recognise yourself after.",
+                           "You're mostly machine already. Think hard about the rest."],
+            },
+        },
+    },
+    "juno": {
+        "name": "Juno",
+        "role": "the bartender at the Neon Lotus",
+        "disposition": "warm but guarded; hears everything, repeats nothing",
+        "facts": ["Has worked the Lotus bar for eleven years.",
+                  "Waters down the drinks of anyone who's rude.",
+                  "Owes Marrow a favour and won't say what for."],
+        "situations": {
+            "pour": {
+                "prompt": "You're pouring the player a drink after a long day.",
+                "canned": ["Rough one? This one's strong.",
+                           "Same as always. Don't tell me about your day, I can see it.",
+                           "Drink up. The city'll still be out there when you're done."],
+            },
+        },
+    },
+    "stranger": {
+        "name": "Stranger",
+        "role": "an old face-for-hire who drinks alone at the Neon Lotus",
+        "disposition": "wry, generous with advice, cagey about their past",
+        "facts": ["Used to talk for a living: negotiator, grifter, maybe both.",
+                  "Buys drinks for people who remind them of themselves."],
+        "situations": {
+            "advice": {
+                "prompt": "You've bought the player a round and are passing on one piece of "
+                          "hard-won advice about reading people or talking your way through the city.",
+                "canned": ["Never tell anyone what you want first. Let them guess wrong.",
+                           "Everyone in this town is selling. Find out what they need to buy.",
+                           "Smile with your eyes. Chrome ones count."],
+            },
+        },
+    },
+    "kestrels": {
+        "name": "Kestrel",
+        "role": "an enforcer for the Kestrels, the gang that taxes your block",
+        "disposition": "bored, menacing, in no hurry",
+        "facts": ["Works in pairs.",
+                  "Considers the tax a public service."],
+        "situations": {
+            "shakedown": {
+                "prompt": "You and your partner corner the player by the lift and demand "
+                          "they pay the block 'tax'.",
+                "canned": ["Tax time. {demand}¢, and nobody has to bleed.",
+                           "Block tax. {demand}¢. We're not asking twice.",
+                           "You're doing well, we hear. That's {demand}¢ well."],
+            },
+        },
+    },
+}
+
 def job_by_id(job_id):
     """Look up a job dict by its id, or None."""
     return next((j for j in JOBS if j["id"] == job_id), None)

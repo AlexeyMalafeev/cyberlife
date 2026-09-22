@@ -1,8 +1,9 @@
 import random
+import socket
 
 import pytest
 
-from cyberlife import save, ui
+from cyberlife import llm, save, ui
 from cyberlife.player import Player
 
 
@@ -24,6 +25,23 @@ def no_color(monkeypatch):
 def line_input(monkeypatch):
     """Route every prompt through ui._read (never raw keypresses), so `answers` can script them."""
     monkeypatch.setattr(ui, "RAW_KEYS", False)
+
+
+@pytest.fixture(autouse=True)
+def canned_dialog():
+    """Every test starts with stock NPC lines, whatever an earlier test switched on."""
+    llm.use(llm.CannedBackend())
+    yield
+    llm.use(llm.CannedBackend())
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """The suite never opens a socket; dialog backends are tested through a fake transport."""
+    def refuse(*args, **kwargs):
+        raise AssertionError("test tried to open a network connection")
+    monkeypatch.setattr(socket, "socket", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
 
 
 @pytest.fixture(autouse=True)

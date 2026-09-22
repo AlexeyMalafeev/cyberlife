@@ -9,6 +9,18 @@ Every release carries a codename that riffs on what it introduced, and the coden
 
 ## [Unreleased]
 
+### Added
+
+- NPCs talk. Marrow, Doc Saito, Juno the bartender, a stranger at the bar and the Kestrels
+  each have a persona and speak a line when you deal with them. By default the lines come from
+  a stock table, so the game stays offline and `--seed` runs are unchanged.
+- `--llm mlx` voices those lines with a local model through `mlx_lm.server` on Apple Silicon
+  (`--llm-url`, `--llm-model`, `--llm-timeout`, or the matching `CYBERLIFE_LLM*` environment
+  variables). The model only narrates: every outcome is rolled before it speaks, a line that
+  mentions numbers or runs long is replaced by a stock one, and if the server stops answering
+  the game says so once and carries on with stock lines. The same seed plays out the same way
+  with the model on or off.
+
 ### Changed
 
 - Menus and yes/no prompts respond to a single keypress — no more Enter. Menu entries are keyed

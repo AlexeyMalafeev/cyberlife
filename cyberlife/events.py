@@ -1,7 +1,7 @@
 """Random night-time events. Each handler mutates the player and narrates."""
 import random
 
-from . import data
+from . import data, llm
 from .ui import say, dim, red, green, cyan, yellow, neon, ask_yes_no
 
 
@@ -36,7 +36,8 @@ def corpo_sweep(p):
 
 
 def fixer_ping(p):
-    say("03:12. Marrow pings: \"Quick one. Ten minutes. Yes or no?\"")
+    say(dim("03:12. Your comm buzzes."))
+    llm.speak("marrow", p, "night_ping")
     if not ask_yes_no("Take it?"):
         say(dim("You roll over. The city can wait."))
         return
@@ -103,8 +104,9 @@ def lucky_find(p):
 
 
 def shakedown(p):
-    say(red("Two Kestrels corner you by the lift. \"Tax time.\""))
+    say(red("Two Kestrels corner you by the lift."))
     demand = min(p.credits, 200)
+    llm.speak("kestrels", p, "shakedown", demand=demand)
     if ask_yes_no(f"Pay them {demand}¢?"):
         p.credits -= demand
         _r(red(f"-{demand}¢"))

@@ -34,6 +34,23 @@ Each day you get **3 action points** (more with the right chrome). Spend them on
 | Ripperdoc     | Buy cyberware (permanent bonuses, costs humanity) or stim-packs. |
 | See the fixer | Buy the 15,000¢ forged orbital visa to win. |
 
+**NPC dialog:** the people you deal with speak stock lines by default. On Apple Silicon you
+can have a local model voice them instead, through [mlx-lm](https://github.com/ml-explore/mlx-lm)'s
+server (installed wherever you like; the game itself still needs nothing but Python):
+
+```bash
+mlx_lm.server --model mlx-community/gemma-3-4b-it-4bit
+```
+
+```bash
+python3 -m cyberlife --llm mlx
+```
+
+The model only talks — every outcome is decided by the game first — and if the server goes
+away the game falls back to stock lines. `--llm-url` (default `http://localhost:8080`),
+`--llm-model` and `--llm-timeout` (default 5s) tune it, or set `CYBERLIFE_LLM=mlx` and
+friends in your environment.
+
 **Saving:** five slots under `~/.cyberlife/saves` (override with `--save-dir DIR` or
 `CYBERLIFE_SAVE_DIR`). The game autosaves each night and when you quit; "Save game" in the
 day menu writes to any slot and costs no action point. Finishing a run — win or lose —

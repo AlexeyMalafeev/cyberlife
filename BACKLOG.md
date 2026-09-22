@@ -33,7 +33,33 @@ Decisions made along the way:
 
 ---
 
-## 2. LLM-driven NPC dialog (local model or DeepSeek API)
+## 2. LLM-driven NPC dialog (local model or DeepSeek API) — 🟡 local done, DeepSeek next
+
+Shipped: `cyberlife/llm.py` with `respond()`/`speak()`, `CannedBackend` (default) and
+`MlxBackend`, five NPCs in `data.NPCS`, `--llm off|mlx`.
+
+Decisions made along the way:
+
+- **MLX instead of Ollama** for the local backend (Ollama may come later). It talks to
+  `mlx_lm.server` over HTTP rather than importing `mlx_lm`, so the game stays stdlib-only,
+  timeouts are real, and the server can live in whatever venv has MLX in it.
+- That server speaks the OpenAI-style `/v1/chat/completions` API, and so does DeepSeek:
+  `ChatCompletionsBackend` holds the wire code. **`DeepSeekBackend` should be a small subclass**
+  — base URL `https://api.deepseek.com`, `Authorization: Bearer $DEEPSEEK_API_KEY` in
+  `headers`, a default `model` — plus a `BACKENDS` entry. An Ollama backend would be the same
+  shape (it serves `/v1/chat/completions` too).
+- The stock line is **always** drawn from `random`, then offered to the model as a tone
+  reference and used as the fallback. That keeps the RNG stream identical with the model on
+  or off, so `--seed` reproduces mechanics regardless of backend.
+- **NPCs never say numbers.** A 4B model quoted a 200¢ shakedown as "twenty credits"; a wrong
+  price reads as the game lying. Prompts ask for no numbers, and any line containing digits or
+  number words falls back to stock. Keep amounts out of situation prompts.
+- Three consecutive backend failures switch to stock lines for the rest of the session, with
+  one notice, so a dead server can't add a timeout to every conversation.
+- No config file yet: CLI flags plus `CYBERLIFE_LLM`, `CYBERLIFE_LLM_URL`,
+  `CYBERLIFE_LLM_MODEL` env vars.
+
+Original plan, for the DeepSeek half:
 
 **Why:** the game's text is currently a fixed flavor table. Generated dialog is what makes
 NPCs feel like people rather than stat vending machines — and it's the foundation for items 3 and 4.
