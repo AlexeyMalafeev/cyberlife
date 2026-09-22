@@ -11,10 +11,10 @@ Every release carries a codename that riffs on what it introduced, and the coden
 
 Nothing yet.
 
-## [0.1.0] — "Altered Carbon" — 2026-09-23
+## [0.1.0] — "Altered Bourbon" — 2026-09-23
 
-First playable release: the full day-to-day loop, and a save system that stores a life to disk
-and restores it later — cortical stacks, near enough.
+First playable release: the full day-to-day loop, a save system that stores a life to disk and
+restores it later, and a bar to drown the day in when the Sprawl gets to be too much.
 
 ### Added
 

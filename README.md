@@ -1,6 +1,6 @@
 # CyberLife
 
-**v0.1.0 "Altered Carbon"** — a text-based cyberpunk life sim. Survive in Neo-Vasilisk long enough to buy your way off-world — or become a legend of the Sprawl.
+**v0.1.0 "Altered Bourbon"** — a text-based cyberpunk life sim. Survive in Neo-Vasilisk long enough to buy your way off-world — or become a legend of the Sprawl.
 
 ## Run
 
