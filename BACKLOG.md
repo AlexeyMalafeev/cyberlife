@@ -6,6 +6,7 @@ architecture described in `CLAUDE.md`. Nothing here is committed to a schedule; 
 Ground rules that apply to all of them:
 
 - Every item ships with tests in the same commit (see the Testing section of `CLAUDE.md`).
+- User-visible changes get a `CHANGELOG.md` entry under `## [Unreleased]` in that same commit.
 - New content goes in `data.py` tables, not inline in logic.
 - All input goes through `ui._read`; all randomness through `random` so `--seed` stays reproducible.
 - The suite must run offline and take no real time — no network, no sleeps.
