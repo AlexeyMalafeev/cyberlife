@@ -30,6 +30,8 @@ Fixtures in `tests/conftest.py`:
 
 `test_random_play_always_reaches_an_ending` is the fuzz test: 40 seeds of random input through `game.run()`, asserting no crash and an ending. It's what caught `pause()` bypassing `_read`.
 
+Planned work and its design notes live in `BACKLOG.md`. Check it before starting a feature — several items have ordering constraints (save/load before anything that adds `Player` fields, LLM dialog before the social systems).
+
 ## Architecture
 
 Everything is a function that takes the `Player` dataclass and mutates it; there's no engine layer beyond `game.run()`.
