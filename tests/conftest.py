@@ -2,8 +2,17 @@ import random
 
 import pytest
 
-from cyberlife import ui
+from cyberlife import save, ui
 from cyberlife.player import Player
+
+
+@pytest.fixture(autouse=True)
+def isolated_saves(tmp_path, monkeypatch):
+    """Never let a test touch the real ~/.cyberlife. Every test gets an empty save dir."""
+    monkeypatch.delenv("CYBERLIFE_SAVE_DIR", raising=False)
+    save.set_save_dir(tmp_path / "saves")
+    yield tmp_path / "saves"
+    save.set_save_dir(None)
 
 
 @pytest.fixture(autouse=True)

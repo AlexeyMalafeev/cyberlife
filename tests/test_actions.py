@@ -30,7 +30,7 @@ def test_work_refuses_unqualified_job(player, answers):
 
 
 def test_quit_job_is_free(player):
-    player.job = data.JOBS[0]
+    player.job_id = data.JOBS[0]["id"]
     assert not actions.quit_job(player)
     assert player.job is None
 

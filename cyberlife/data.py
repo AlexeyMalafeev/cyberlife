@@ -5,6 +5,7 @@ VISA_COST = 15_000
 LEGEND_CRED = 100
 RENT_EVERY = 7
 MAX_MISSED_RENT = 3
+SAVE_SLOTS = 5
 
 BACKGROUNDS = {
     "Street Kid": {
@@ -26,12 +27,12 @@ BACKGROUNDS = {
 
 # Legit work: steady credits, steady stress. req = (skill, level) or None.
 JOBS = [
-    {"name": "Noodle stand shift",          "pay": 70,  "stress": 9,  "req": None},
-    {"name": "Courier for QuikDrop",        "pay": 100, "stress": 10, "req": ("muscle", 2)},
-    {"name": "Data-entry drone, Kiroshi",   "pay": 140, "stress": 12, "req": ("hacking", 3)},
-    {"name": "Club promoter, Neon Lotus",   "pay": 160, "stress": 11, "req": ("charm", 4)},
-    {"name": "Security contractor, Vexcorp","pay": 240, "stress": 14, "req": ("muscle", 5)},
-    {"name": "Junior netrunner, Tessier",   "pay": 320, "stress": 16, "req": ("hacking", 6)},
+    {"id": "noodle",    "name": "Noodle stand shift",           "pay": 70,  "stress": 9,  "req": None},
+    {"id": "courier",   "name": "Courier for QuikDrop",         "pay": 100, "stress": 10, "req": ("muscle", 2)},
+    {"id": "dataentry", "name": "Data-entry drone, Kiroshi",    "pay": 140, "stress": 12, "req": ("hacking", 3)},
+    {"id": "promoter",  "name": "Club promoter, Neon Lotus",    "pay": 160, "stress": 11, "req": ("charm", 4)},
+    {"id": "security",  "name": "Security contractor, Vexcorp", "pay": 240, "stress": 14, "req": ("muscle", 5)},
+    {"id": "netrunner", "name": "Junior netrunner, Tessier",    "pay": 320, "stress": 16, "req": ("hacking", 6)},
 ]
 
 # Gigs: risky, skill-checked. chance = base + 0.07 * skill.
@@ -80,3 +81,8 @@ BAR_FLAVOR = [
     "The bartender pours something blue and doesn't ask questions.",
     "Holo-ads flicker across the sweat on the walls.",
 ]
+
+
+def job_by_id(job_id):
+    """Look up a job dict by its id, or None."""
+    return next((j for j in JOBS if j["id"] == job_id), None)

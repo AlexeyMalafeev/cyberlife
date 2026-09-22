@@ -62,7 +62,7 @@ def _pick_job(player):
     if not _meets(player, job["req"]):
         say(red("You don't qualify. Yet."))
         return False
-    player.job = job
+    player.job_id = job["id"]
     say(green(f"You're now working as: {job['name']}."))
     return True
 
@@ -71,7 +71,7 @@ def quit_job(player):
     """Free action: does not spend an action point."""
     if player.job:
         say(dim(f"You ghost {player.job['name']}. They won't miss you."))
-        player.job = None
+        player.job_id = None
 
 
 # -- Gigs -------------------------------------------------------------

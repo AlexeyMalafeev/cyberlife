@@ -19,11 +19,12 @@ class Player:
     heat: int = 0
     skills: dict = field(default_factory=lambda: {"hacking": 1, "muscle": 1, "charm": 1})
     cyberware: list = field(default_factory=list)   # list of cyberware ids
-    job: dict | None = None
+    job_id: str | None = None                      # key into data.JOBS; see .job
     rent: int = 600
     missed_rent: int = 0
     energy_penalty: int = 0   # applied at the start of the next day
     won: str | None = None
+    save_slot: int | None = None   # which slot this run autosaves to
 
     # -- derived stats -------------------------------------------------
 
@@ -33,6 +34,11 @@ class Player:
             if cw["id"] in self.cyberware:
                 total += cw["bonus"].get(key, 0)
         return total
+
+    @property
+    def job(self):
+        """The current job's data dict, or None. Set via job_id so state stays JSON-safe."""
+        return data.job_by_id(self.job_id) if self.job_id else None
 
     def skill(self, name):
         return self.skills[name] + self._bonus(name)

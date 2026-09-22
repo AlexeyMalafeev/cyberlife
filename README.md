@@ -32,6 +32,11 @@ Each day you get **3 action points** (more with the right chrome). Spend them on
 | Ripperdoc     | Buy cyberware (permanent bonuses, costs humanity) or stim-packs. |
 | See the fixer | Buy the 15,000¢ forged orbital visa to win. |
 
+**Saving:** five slots under `~/.cyberlife/saves` (override with `--save-dir DIR` or
+`CYBERLIFE_SAVE_DIR`). The game autosaves each night and when you quit; "Save game" in the
+day menu writes to any slot and costs no action point. Finishing a run — win or lose —
+retires its slot.
+
 At night: rent is auto-debited every 7 days, heat cools off, and a random event fires (some with choices). High heat attracts corpo sweeps.
 
 **Win:** buy the visa, or reach 100 street cred.

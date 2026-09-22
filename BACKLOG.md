@@ -12,29 +12,23 @@ Ground rules that apply to all of them:
 
 ---
 
-## 1. Save / load game state
+## 1. Save / load game state — ✅ done
 
-**Why first:** everything below adds fields to `Player`, and a save format written after the
-fact has to migrate them. Doing it now means later features only add a key.
+Shipped: `cyberlife/save.py`, five slots, autosave each night, save-on-quit, manual
+"Save game" (free action) to any slot, title screen with Continue / Load / New run.
 
-**Shape**
+Decisions made along the way:
 
-- `cyberlife/save.py` with `save(player, path)` / `load(path) -> Player`, JSON via
-  `dataclasses.asdict`. Default location `~/.cyberlife/save.json`, overridable with `--save PATH`.
-- `player.job` currently holds a `data.JOBS` dict *by identity*. That doesn't round-trip —
-  give jobs an `id` field like cyberware has, store the id, and resolve on load. This is the
-  one real refactor in this item; `actions.work` and `game.show_status` touch it.
-- Add a `SAVE_VERSION` int. `load` rejects a newer version with a clear message and
-  fills in missing keys from `Player`'s defaults so old saves keep working.
-- Autosave at the end of `night()`; offer "Continue" on the title screen when a save exists.
-- On an ending, delete the save (or move it to `save.dead.json` for a post-mortem screen).
-
-**Tests:** round-trip a player with cyberware/job/relationships and assert field equality;
-load a save missing a key added later; reject a future version; autosave writes after night;
-ending clears the save. Use pytest's `tmp_path`, never the real home directory.
-
-**Open question:** one save slot or several? One is simpler and fits the
-permadeath tone; several is friendlier for testing later-game content.
+- **Several slots** (`data.SAVE_SLOTS = 5`), not one. Permadeath becomes an opt-in
+  difficulty setting instead — see item 6.
+- Jobs got an `id` and `Player.job_id` replaced `Player.job` (now a derived property),
+  which is what made the state JSON-safe.
+- A finished run's slot is deleted by `game.finish()`. With autosave-only that already
+  behaves like permadeath; item 6 is what makes it a choice.
+- Saves are versioned (`SAVE_VERSION`), tolerate missing/unknown fields, drop content
+  that no longer exists, and refuse anything newer than the build.
+- A slot whose file exists but won't parse reads as *damaged*, not *empty*, so a new run
+  never silently overwrites it.
 
 ---
 
@@ -164,3 +158,33 @@ the part to figure out on paper.
 **Tests:** chapter transition preserves the right fields and converts the rest; each chapter
 reaches an ending under random play (extend the fuzz test to run through transitions);
 chapter-specific loss conditions fire; a mid-chapter save loads into the right chapter.
+
+---
+
+## 6. Difficulty settings (incl. optional permadeath)
+
+**Depends on:** item 1 (shipped).
+
+**Why:** the save system deliberately left this open. Five slots and a manual save make the
+game forgiving by default; some players want the original stakes back, and later chapters
+(item 5) will want a way to skip the early grind for testing.
+
+**Shape**
+
+- A `Difficulty` record in `data.py` — not scattered `if hard:` branches — holding
+  multipliers and flags the rest of the code reads: starting credits, rent scaling,
+  gig success modifier, event severity, and `permadeath: bool`.
+- Chosen at character creation, stored on `Player`, and persisted (it's just another field,
+  which the save format already tolerates).
+- **Permadeath on:** manual saving is disabled, the autosave slot is the only state, and
+  `game.finish()` deletes it as it does today. The honest version also removes the
+  quit-and-reload escape — save-on-quit should write and then refuse to load that slot
+  twice, or simply delete on load.
+- **Permadeath off (default):** manual saves and reloading stay as they are now.
+- Worth considering: a `--dev` difficulty that starts on day 40 with credits and chrome,
+  purely to reach late-game content without playing 40 days by hand. This is the cheapest
+  way to make item 5 testable.
+
+**Tests:** each difficulty's modifiers actually apply; permadeath blocks manual save and
+clears the slot on death; difficulty round-trips through save/load; a save written before
+difficulty existed loads at the default.
