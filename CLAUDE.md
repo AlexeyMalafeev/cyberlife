@@ -32,6 +32,14 @@ Fixtures in `tests/conftest.py`:
 
 `test_random_play_always_reaches_an_ending` is the fuzz test: 40 seeds of random input through `game.run()`, asserting no crash and an ending. It's what caught `pause()` bypassing `_read`.
 
+Releases are tagged `vX.Y.Z` and carry a **codename that riffs on what that release
+introduced**, running **alphabetically** — v0.1.0 is "Altered Carbon" (save/load, i.e. cortical
+stacks), so the next is a B name. Cyberpunk pop-culture references and puns are the house
+style. To cut a release: rename the `## [Unreleased]` heading to
+`## [X.Y.Z] — "Codename" — YYYY-MM-DD` with a one-line summary, open a fresh empty Unreleased
+section, bump `version` in `pyproject.toml`, then `git tag -a vX.Y.Z` with the codename in the
+tag message and `git push --tags`.
+
 **User-visible changes go in `CHANGELOG.md` under `## [Unreleased]`** in the same commit,
 grouped Added / Changed / Fixed. Describe what a player or contributor notices, not the diff;
 internal refactors only earn a line when they change how you work with the code (the

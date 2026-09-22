@@ -4,10 +4,17 @@ All notable changes to CyberLife are recorded here, newest first. The format fol
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project aims to follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Nothing has been released or tagged yet, so all work to date sits under Unreleased. On the
-first release, rename that heading to the version and date and open a fresh Unreleased section.
+Every release carries a codename that riffs on what it introduced, and the codenames run
+**alphabetically** — 0.1.0 is A, the next release is B, and so on.
 
 ## [Unreleased]
+
+Nothing yet.
+
+## [0.1.0] — "Altered Carbon" — 2026-09-23
+
+First playable release: the full day-to-day loop, and a save system that stores a life to disk
+and restores it later — cortical stacks, near enough.
 
 ### Added
 
