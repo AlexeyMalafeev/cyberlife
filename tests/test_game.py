@@ -65,7 +65,7 @@ def test_random_play_always_reaches_an_ending(seed, monkeypatch):
         if "[y/n]" in prompt:
             return rng.choice(["y", "n"])
         if "> " in prompt:
-            return str(rng.randint(1, 9))
+            return str(rng.randint(0, 9))
         return ""
 
     monkeypatch.setattr(ui, "_read", fake_read)

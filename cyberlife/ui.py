@@ -2,7 +2,22 @@
 import os
 import sys
 
+try:
+    import termios
+    import tty
+except ImportError:          # Windows
+    termios = tty = None
+try:
+    import msvcrt
+except ImportError:          # everything else
+    msvcrt = None
+
 USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+# Single-keypress input needs a real terminal; otherwise (pipes, tests) fall back to _read lines.
+RAW_KEYS = sys.stdin.isatty() and (termios is not None or msvcrt is not None)
+
+# Menu keys, in order: 1-9, then 0 for a tenth entry, then letters (never q -- that quits).
+MENU_KEYS = "1234567890abcdefghijklmnoprstuvwxyz"
 
 
 class QuitGame(Exception):
@@ -46,8 +61,48 @@ def _read(prompt):
     return raw
 
 
+def _getkey():
+    """Block for one keypress and return it; drops keys typed ahead so they can't pick the next menu."""
+    if msvcrt is not None:
+        while msvcrt.kbhit():
+            msvcrt.getwch()
+        ch = msvcrt.getwch()
+        if ch in ("\x00", "\xe0"):     # arrow/function key: second half of the pair
+            msvcrt.getwch()
+            return ""
+        return ch
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)                # no echo, no line buffering; Ctrl-C still raises
+        termios.tcflush(fd, termios.TCIFLUSH)
+        raw = os.read(fd, 32).decode(errors="ignore")
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    return "" if raw.startswith("\x1b") else raw[:1]   # ignore escape sequences (arrows etc.)
+
+
+def _read_key(prompt):
+    """Like _read, but a single keypress with no Enter. Returns the key lowercased ('' for Enter)."""
+    if not RAW_KEYS:
+        return _read(prompt).lower()
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    ch = _getkey()
+    if ch == "\x03":
+        raise KeyboardInterrupt
+    if ch in ("\x04", "\x1a"):          # Ctrl-D / Ctrl-Z: EOF
+        print()
+        raise QuitGame
+    ch = "" if ch in ("\r", "\n") else ch.lower()
+    print(ch if ch.isprintable() else "")
+    if ch == "q":
+        raise QuitGame
+    return ch
+
+
 def pause():
-    _read(dim("[enter] "))
+    _read_key(dim("[any key] "))
 
 
 def bar(value, maximum, width=12, color=green):
@@ -57,20 +112,23 @@ def bar(value, maximum, width=12, color=green):
 
 
 def menu(title, options):
-    """Show a numbered menu; return the chosen index."""
+    """Show a menu keyed 1-9, 0, a-z; one keypress picks. Return the chosen index."""
+    if len(options) > len(MENU_KEYS):
+        raise ValueError(f"menu has {len(options)} options; at most {len(MENU_KEYS)} fit")
+    keys = MENU_KEYS[:len(options)]
     print(bold(title))
-    for i, opt in enumerate(options, 1):
-        print(f"  {cyan(i)}. {opt}")
+    for key, opt in zip(keys, options):
+        print(f"  {cyan(key)}. {opt}")
     while True:
-        raw = _read(neon("> "))
-        if raw.isdigit() and 1 <= int(raw) <= len(options):
-            return int(raw) - 1
-        print(dim(f"Pick 1-{len(options)} (or q to quit)."))
+        raw = _read_key(neon("> "))
+        if len(raw) == 1 and raw in keys:
+            return keys.index(raw)
+        print(dim("Press one of the keys shown (or q to quit)."))
 
 
 def ask_yes_no(prompt):
     while True:
-        raw = _read(neon(f"{prompt} [y/n] ")).lower()
+        raw = _read_key(neon(f"{prompt} [y/n] "))
         if raw in ("y", "yes"):
             return True
         if raw in ("n", "no"):

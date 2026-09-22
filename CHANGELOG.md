@@ -9,7 +9,13 @@ Every release carries a codename that riffs on what it introduced, and the coden
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- Menus and yes/no prompts respond to a single keypress — no more Enter. Menu entries are keyed
+  1–9, then 0 for a tenth entry (the day menu's "End the day" while you hold a job). "Press any
+  key" replaces "press Enter" between screens. Keys typed ahead are dropped, so a held key can't
+  spend your action points for you. Name and handle prompts still take a full line, and piped
+  input (no terminal) still reads one line per prompt.
 
 ## [0.1.0] — "Altered Bourbon" — 2026-09-23
 

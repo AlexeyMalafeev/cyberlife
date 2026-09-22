@@ -27,7 +27,7 @@ Fixtures in `tests/conftest.py`:
 - `isolated_saves` (autouse) — points the save directory at `tmp_path`. Tests must never
   touch the real `~/.cyberlife`; the fuzz test picks menu entries at random and will hit "Save game".
 - `player` — a Street Kid with 1000¢ and default stats.
-- `answers("1", "y", ...)` — scripts user input by replacing `ui._read`; raises if the code asks for more input than scripted, so it also asserts prompt count. Menu numbers are positional, and the day menu renumbers when "Quit job" disappears.
+- `answers("1", "y", ...)` — scripts user input by replacing `ui._read` (the autouse `line_input` fixture turns off single-keypress mode so menus read through it too); raises if the code asks for more input than scripted, so it also asserts prompt count. Menu numbers are positional, and the day menu renumbers when "Quit job" disappears.
 - `force_roll(0.0 | 0.99)` — pins `random.random()` so success/failure branches are deterministic. `random.randint`/`random.choice` are unaffected (the autouse `seeded` fixture seeds them).
 
 `test_random_play_always_reaches_an_ending` is the fuzz test: 40 seeds of random input through `game.run()`, asserting no crash and an ending. It's what caught `pause()` bypassing `_read`.
@@ -69,7 +69,7 @@ Everything is a function that takes the `Player` dataclass and mutates it; there
   changes meaning**, not when one is merely added.
 - **`Player.job_id`** is the stored field; `player.job` is a read-only property resolving it
   through `data.job_by_id`. Assign `job_id`, never `job`.
-- **`ui.py`** owns all input. Every prompt goes through `_read`, which raises `QuitGame` on `q`/EOF; `game.run` catches it. Don't call `input()` directly elsewhere or the fuzzer/quit handling breaks.
+- **`ui.py`** owns all input. Text prompts go through `_read`, which raises `QuitGame` on `q`/EOF; `game.run` catches it. Menus, y/n and `pause()` go through `_read_key`, which reads one raw keypress on a real terminal (`RAW_KEYS`) and otherwise falls back to `_read`. Menu keys come from `MENU_KEYS` (1-9, 0, then letters without `q`). Don't call `input()` directly elsewhere or the fuzzer/quit handling breaks.
 
 ## Balance notes
 

@@ -21,6 +21,12 @@ def no_color(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def line_input(monkeypatch):
+    """Route every prompt through ui._read (never raw keypresses), so `answers` can script them."""
+    monkeypatch.setattr(ui, "RAW_KEYS", False)
+
+
+@pytest.fixture(autouse=True)
 def seeded():
     random.seed(0)
 
