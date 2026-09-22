@@ -46,10 +46,19 @@ mlx_lm.server --model mlx-community/gemma-3-4b-it-4bit
 python3 -m cyberlife --llm mlx
 ```
 
-The model only talks — every outcome is decided by the game first — and if the server goes
-away the game falls back to stock lines. `--llm-url` (default `http://localhost:8080`),
-`--llm-model` and `--llm-timeout` (default 5s) tune it, or set `CYBERLIFE_LLM=mlx` and
-friends in your environment.
+Or use DeepSeek's hosted API, with the key in your environment (never in a file in the repo):
+
+```bash
+DEEPSEEK_API_KEY=sk-... python3 -m cyberlife --llm deepseek
+```
+
+With DeepSeek, each line's prompt goes to DeepSeek's servers. It holds the NPC's persona
+and a summary of your character (handle, background, stats, chrome), and nothing else.
+
+Either way, the model only talks. Every outcome is decided by the game first, and if the
+model goes away the game falls back to stock lines. `--llm-url`, `--llm-model` and
+`--llm-timeout` (default 5s for mlx, 10s for deepseek) tune it, or set `CYBERLIFE_LLM=mlx`
+and friends in your environment.
 
 **Saving:** five slots under `~/.cyberlife/saves` (override with `--save-dir DIR` or
 `CYBERLIFE_SAVE_DIR`). The game autosaves each night and when you quit; "Save game" in the

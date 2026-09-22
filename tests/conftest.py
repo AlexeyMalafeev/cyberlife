@@ -28,8 +28,11 @@ def line_input(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def canned_dialog():
-    """Every test starts with stock NPC lines, whatever an earlier test switched on."""
+def canned_dialog(monkeypatch):
+    """Every test starts with stock NPC lines, and never sees the developer's real API key or
+    CYBERLIFE_LLM* settings."""
+    for var in ("DEEPSEEK_API_KEY", "CYBERLIFE_LLM", "CYBERLIFE_LLM_URL", "CYBERLIFE_LLM_MODEL"):
+        monkeypatch.delenv(var, raising=False)
     llm.use(llm.CannedBackend())
     yield
     llm.use(llm.CannedBackend())

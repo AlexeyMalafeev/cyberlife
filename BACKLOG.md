@@ -33,21 +33,21 @@ Decisions made along the way:
 
 ---
 
-## 2. LLM-driven NPC dialog (local model or DeepSeek API) — 🟡 local done, DeepSeek next
+## 2. LLM-driven NPC dialog (local model or DeepSeek API) — ✅ done
 
-Shipped: `cyberlife/llm.py` with `respond()`/`speak()`, `CannedBackend` (default) and
-`MlxBackend`, five NPCs in `data.NPCS`, `--llm off|mlx`.
+Shipped: `cyberlife/llm.py` with `respond()`/`speak()`, `CannedBackend` (default),
+`MlxBackend` and `DeepSeekBackend`, five NPCs in `data.NPCS`, `--llm off|mlx|deepseek`.
 
 Decisions made along the way:
 
 - **MLX instead of Ollama** for the local backend (Ollama may come later). It talks to
   `mlx_lm.server` over HTTP rather than importing `mlx_lm`, so the game stays stdlib-only,
   timeouts are real, and the server can live in whatever venv has MLX in it.
-- That server speaks the OpenAI-style `/v1/chat/completions` API, and so does DeepSeek:
-  `ChatCompletionsBackend` holds the wire code. **`DeepSeekBackend` should be a small subclass**
-  — base URL `https://api.deepseek.com`, `Authorization: Bearer $DEEPSEEK_API_KEY` in
-  `headers`, a default `model` — plus a `BACKENDS` entry. An Ollama backend would be the same
-  shape (it serves `/v1/chat/completions` too).
+- mlx_lm.server and DeepSeek both speak the OpenAI-style `/v1/chat/completions` API, so
+  `ChatCompletionsBackend` holds the wire code and each backend is a few lines of defaults
+  (URL, model, timeout, auth header). An Ollama backend would be the same shape.
+- `DEEPSEEK_API_KEY` is read from the environment and only ever sent as a bearer header.
+  `--llm deepseek` with no key is a usage error before the game starts.
 - The stock line is **always** drawn from `random`, then offered to the model as a tone
   reference and used as the fallback. That keeps the RNG stream identical with the model on
   or off, so `--seed` reproduces mechanics regardless of backend.
@@ -55,39 +55,11 @@ Decisions made along the way:
   price reads as the game lying. Prompts ask for no numbers, and any line containing digits or
   number words falls back to stock. Keep amounts out of situation prompts.
 - Three consecutive backend failures switch to stock lines for the rest of the session, with
-  one notice, so a dead server can't add a timeout to every conversation.
+  one notice naming the error, so a dead server or bad key can't add a timeout to every line.
 - No config file yet: CLI flags plus `CYBERLIFE_LLM`, `CYBERLIFE_LLM_URL`,
   `CYBERLIFE_LLM_MODEL` env vars.
-
-Original plan, for the DeepSeek half:
-
-**Why:** the game's text is currently a fixed flavor table. Generated dialog is what makes
-NPCs feel like people rather than stat vending machines — and it's the foundation for items 3 and 4.
-
-**Shape**
-
-- `cyberlife/llm.py` exposing one function, something like
-  `respond(npc, player, situation) -> str`, plus a `Backend` protocol with three
-  implementations: `OllamaBackend` (local, `http://localhost:11434`), `DeepSeekBackend`
-  (reads `DEEPSEEK_API_KEY` from the environment — never from a file in the repo), and
-  `CannedBackend` that returns lines from `data.py`.
-- **`CannedBackend` is the default.** The game must stay fully playable, deterministic, and
-  offline with no model configured. Select the backend with `--llm ollama|deepseek|off`
-  or a config file written by item 1.
-- Prompt construction lives in one place: a system prompt carrying the NPC's persona card
-  (name, role, disposition toward the player, 2-3 memorable facts) plus a compact player
-  summary (handle, background, cred, heat, notable chrome). Keep it small — this gets called
-  a lot and local models have short attention spans.
-- Treat model output as untrusted text: cap length, strip ANSI escapes before printing, and
-  never let it decide stat changes. **Mechanics stay in Python** — the LLM narrates the
-  outcome the code already chose. This keeps the game fair and the tests meaningful.
-- Timeout hard (~5s) and fall back to canned lines on any error. A dead Ollama process
-  should degrade the flavor text, not end the run.
-
-**Tests:** `CannedBackend` is deterministic under `--seed`; a stub backend that raises falls
-back to canned; a stub returning 10KB of ANSI garbage gets truncated and sanitized; prompt
-builder includes persona and player facts. Real backends are tested against a fake HTTP
-transport — the suite never opens a socket.
+- Test backends with a stub or a fake `post=` transport; the suite's `no_network` fixture
+  fails any test that opens a socket.
 
 ---
 

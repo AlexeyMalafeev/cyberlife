@@ -1,5 +1,7 @@
+import io
 import json
 import random
+import urllib.error
 
 import pytest
 
@@ -204,12 +206,76 @@ def test_default_transport_posts_json_with_timeout(monkeypatch):
 
 # -- wiring --------------------------------------------------------------
 
+def test_mlx_default_timeout():
+    assert llm.MlxBackend().timeout == 5.0
+
+
+# -- DeepSeek backend over a fake transport ------------------------------
+
+KEY = "sk-test-not-a-real-key"
+
+
+def test_deepseek_speaks_chat_completions_with_bearer_key(player, monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", KEY)
+    post = fake_post(ok("Tax day, Ghost."))
+    llm.use(llm.DeepSeekBackend(post=post))
+    assert llm.respond("kestrels", player, "shakedown", demand=200) == "Tax day, Ghost."
+    req = post.sent[0]
+    assert req["url"] == "https://api.deepseek.com/v1/chat/completions"
+    assert req["headers"] == {"Authorization": f"Bearer {KEY}"}
+    assert req["payload"]["model"] == "deepseek-chat"
+    assert req["timeout"] == 10.0
+    assert KEY not in req["url"] and KEY not in json.dumps(req["payload"])
+
+
+def test_deepseek_overrides():
+    b = llm.DeepSeekBackend(api_key=KEY, url="https://proxy.example/", model="deepseek-reasoner", timeout=3)
+    assert b.url == "https://proxy.example/v1/chat/completions"
+    assert (b.model, b.timeout) == ("deepseek-reasoner", 3)
+
+
+def test_deepseek_without_key_refuses():
+    with pytest.raises(ValueError, match="DEEPSEEK_API_KEY"):
+        llm.DeepSeekBackend()
+
+
+def test_deepseek_default_transport_sends_key_in_header(monkeypatch):
+    seen = {}
+
+    class Resp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return json.dumps(ok("Hey.")).encode()
+
+    def urlopen(req, timeout):
+        seen.update(auth=req.get_header("Authorization"), url=req.full_url)
+        return Resp()
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", urlopen)
+    assert llm.DeepSeekBackend(api_key=KEY).complete([]) == "Hey."
+    assert seen["auth"] == f"Bearer {KEY}" and KEY not in seen["url"]
+
+
+def test_deepseek_auth_failure_gives_up_without_leaking_key(player, capsys):
+    err = urllib.error.HTTPError("https://api.deepseek.com/v1/chat/completions", 401,
+                                 "Unauthorized", {}, io.BytesIO(b"{}"))
+    llm.use(llm.DeepSeekBackend(api_key=KEY, post=fake_post(err)))
+    for _ in range(llm.GIVE_UP_AFTER):
+        line = llm.respond("juno", player, "pour")
+    assert line in data.NPCS["juno"]["situations"]["pour"]["canned"]
+    out = capsys.readouterr().out
+    assert "deepseek dialog model isn't answering" in out and "401" in out
+    assert KEY not in out
+
+
 def test_make_backend():
     assert isinstance(llm.make_backend("off"), llm.CannedBackend)
     b = llm.make_backend("mlx", url="http://x:1", model="m", timeout=9)
     assert isinstance(b, llm.MlxBackend) and b.model == "m" and b.timeout == 9
     with pytest.raises(ValueError):
         llm.make_backend("ollama")
+    with pytest.raises(ValueError):
+        llm.make_backend("deepseek")          # no key in the environment
 
 
 def test_cli_selects_backend(monkeypatch):
@@ -225,6 +291,21 @@ def test_cli_reads_env(monkeypatch):
     monkeypatch.setenv("CYBERLIFE_LLM_MODEL", "envmodel")
     cli.main([])
     assert isinstance(llm.backend, llm.MlxBackend) and llm.backend.model == "envmodel"
+
+
+def test_cli_deepseek(monkeypatch):
+    monkeypatch.setattr(cli, "run", lambda **kw: None)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", KEY)
+    cli.main(["--llm", "deepseek"])
+    assert isinstance(llm.backend, llm.DeepSeekBackend)
+    assert (llm.backend.model, llm.backend.timeout) == ("deepseek-chat", 10.0)
+
+
+def test_cli_deepseek_without_key_is_a_usage_error(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "run", lambda **kw: pytest.fail("game started without a key"))
+    with pytest.raises(SystemExit):
+        cli.main(["--llm", "deepseek"])
+    assert "DEEPSEEK_API_KEY" in capsys.readouterr().err
 
 
 def test_cli_rejects_bad_env_backend(monkeypatch):

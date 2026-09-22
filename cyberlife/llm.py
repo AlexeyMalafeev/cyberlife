@@ -5,6 +5,7 @@ requested, and the stock line is picked from `random` whichever backend is activ
 --seed plays out identically with the model on or off.
 """
 import json
+import os
 import random
 import re
 import urllib.request
@@ -28,11 +29,12 @@ class CannedBackend:
 class ChatCompletionsBackend:
     """Any server speaking the OpenAI-style /v1/chat/completions API."""
     name = "chat"
+    DEFAULT_TIMEOUT = 5.0
 
-    def __init__(self, url, model=None, timeout=5.0, headers=None, post=None):
+    def __init__(self, url, model=None, timeout=None, headers=None, post=None):
         self.url = url.rstrip("/") + "/v1/chat/completions"
         self.model = model
-        self.timeout = timeout
+        self.timeout = timeout or self.DEFAULT_TIMEOUT
         self.headers = headers or {}
         self._post = post or _post_json
 
@@ -49,14 +51,30 @@ class MlxBackend(ChatCompletionsBackend):
     name = "mlx"
     DEFAULT_URL = "http://localhost:8080"
 
-    def __init__(self, url=None, model=None, timeout=5.0, post=None):
+    def __init__(self, url=None, model=None, timeout=None, post=None):
         super().__init__(url or self.DEFAULT_URL, model=model, timeout=timeout, post=post)
 
 
-BACKENDS = {"off": CannedBackend, "mlx": MlxBackend}
+class DeepSeekBackend(ChatCompletionsBackend):
+    """DeepSeek's hosted API. The key comes from $DEEPSEEK_API_KEY and only ever goes in a header."""
+    name = "deepseek"
+    DEFAULT_URL = "https://api.deepseek.com"
+    DEFAULT_MODEL = "deepseek-chat"
+    DEFAULT_TIMEOUT = 10.0     # a round trip over the internet, not localhost
+
+    def __init__(self, url=None, model=None, timeout=None, post=None, api_key=None):
+        api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("--llm deepseek needs an API key in the DEEPSEEK_API_KEY environment variable")
+        super().__init__(url or self.DEFAULT_URL, model=model or self.DEFAULT_MODEL, timeout=timeout,
+                         headers={"Authorization": f"Bearer {api_key}"}, post=post)
 
 
-def make_backend(name, url=None, model=None, timeout=5.0):
+BACKENDS = {"off": CannedBackend, "mlx": MlxBackend, "deepseek": DeepSeekBackend}
+
+
+def make_backend(name, url=None, model=None, timeout=None):
+    """Build a backend by CLI name. Raises ValueError for an unknown name or missing API key."""
     if name not in BACKENDS:
         raise ValueError(f"unknown dialog backend {name!r}; choose from {', '.join(BACKENDS)}")
     if name == "off":
@@ -155,10 +173,12 @@ def respond(npc_id, player, situation, **context):
     messages = build_messages(npc, player, sit["prompt"].format(**context), canned)
     try:
         text = backend.complete(messages)
-    except Exception:
+    except Exception as exc:
         _failures += 1
         if _failures >= GIVE_UP_AFTER and not isinstance(backend, CannedBackend):
-            say(dim(f"(The {backend.name} dialog model isn't answering. Using stock lines for now.)"))
+            reason = sanitize(str(exc) or type(exc).__name__)[:80]
+            say(dim(f"(The {backend.name} dialog model isn't answering: {reason}. "
+                    "Using stock lines for now.)"))
             use(CannedBackend())
         return canned
     if text is None:

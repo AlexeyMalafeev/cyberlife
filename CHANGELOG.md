@@ -20,6 +20,10 @@ Every release carries a codename that riffs on what it introduced, and the coden
   mentions numbers or runs long is replaced by a stock one, and if the server stops answering
   the game says so once and carries on with stock lines. The same seed plays out the same way
   with the model on or off.
+- `--llm deepseek` voices NPCs through DeepSeek's hosted API instead, using the key in
+  `DEEPSEEK_API_KEY` (model `deepseek-chat` and a 10s timeout unless you say otherwise).
+  Starting without a key is a usage error; a rejected key gets one notice naming the HTTP
+  error, then stock lines.
 
 ### Changed
 
