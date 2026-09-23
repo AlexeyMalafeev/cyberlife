@@ -85,3 +85,7 @@ tests/          pytest suite (fixtures in conftest.py)
 ```
 
 Tuning knobs (visa cost, legend cred, rent cadence) live at the top of `data.py`; adding a job, gig, or implant is a one-line entry in the same file.
+
+## License
+
+[MIT](LICENSE).

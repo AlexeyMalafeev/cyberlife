@@ -11,6 +11,7 @@ Every release carries a codename that riffs on what it introduced, and the coden
 
 ### Added
 
+- The project is open source under the MIT license (see `LICENSE`).
 - NPCs talk. Marrow, Doc Saito, Juno the bartender, a stranger at the bar and the Kestrels
   each have a persona and speak a line when you deal with them. By default the lines come from
   a stock table, so the game stays offline and `--seed` runs are unchanged.
