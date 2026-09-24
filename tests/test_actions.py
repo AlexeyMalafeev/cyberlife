@@ -1,6 +1,6 @@
 import random
 
-from cyberlife import actions, data
+from cyberlife import actions, data, romance
 
 
 # -- work ---------------------------------------------------------------
@@ -156,3 +156,62 @@ def test_fixer_visa_wins(player, answers):
 def test_fixer_too_poor_is_free(player):
     assert not actions.fixer(player)
     assert player.won is None
+
+
+def test_visa_for_two_takes_her_along(player, dating, answers):
+    player.credits = data.VISA_FOR_TWO
+    answers("y")
+    assert actions.fixer(player)
+    assert player.won == "visa" and dating["came_along"]
+    assert player.credits == 0
+
+
+def test_you_can_still_leave_without_her(player, dating, answers):
+    player.credits = data.VISA_FOR_TWO
+    answers("n", "y")
+    assert actions.fixer(player)
+    assert player.won == "visa" and not dating["came_along"]
+    assert player.credits == data.VISA_FOR_TWO - data.VISA_COST
+
+
+def test_one_visa_is_all_you_can_afford(player, dating, answers):
+    player.credits = data.VISA_COST
+    answers("y")                     # no two-visa question when you can't pay for it
+    assert actions.fixer(player)
+    assert not dating["came_along"]
+
+
+# -- time with your partner ---------------------------------------------
+
+def test_outing_with_your_partner(player, dating, answers):
+    player.stress, player.humanity, player.day = 50, 60, 9
+    before = dating["affection"]
+    answers("1")                     # her first interest's outing
+    assert actions.see_partner(player)
+    fx = data.REL_OUTING
+    assert player.credits == 1000 - fx["cost"]
+    assert player.stress == 50 + fx["stress"]
+    assert player.humanity == 60 + fx["humanity"]
+    assert dating["affection"] == before + fx["affection"]
+    assert dating["last_seen_day"] == 9
+
+
+def test_outings_follow_her_interests(dating):
+    labels = [label for label, _ in romance.outings(dating)]
+    assert labels[:2] == [data.DATE_INTERESTS[i]["outing"] for i in dating["interests"]]
+    assert labels[2] == data.REL_STAY_IN["label"]
+
+
+def test_staying_in_is_free(player, dating, answers):
+    answers("3")
+    assert actions.see_partner(player)
+    assert player.credits == 1000
+
+
+def test_never_mind_and_no_money_are_free(player, dating, answers):
+    answers("4")
+    assert not actions.see_partner(player)
+    player.credits = 0
+    answers("1")
+    assert not actions.see_partner(player)
+    assert dating["last_seen_day"] == 1 and player.humanity == 100

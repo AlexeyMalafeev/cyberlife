@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from cyberlife import data, save
+from cyberlife import data, romance, save
 from cyberlife.player import Player
 
 
@@ -14,6 +14,9 @@ def _rich_player():
     p.job_id = "dataentry"
     p.cred, p.heat, p.stress, p.humanity, p.health = 14, 2, 41, 63, 77
     p.rent, p.missed_rent, p.energy, p.energy_penalty = 650, 1, 2, 1
+    romance.ensure_cast(p)
+    romance.start_relationship(p, p.cast[2])
+    p.cast[0].update(stage="met", times_met=2, affection=4, last_outcome=3, avoid_until=14)
     return p
 
 

@@ -5,10 +5,10 @@ import os
 import time
 from pathlib import Path
 
-from . import data
+from . import data, romance
 from .player import Player
 
-SAVE_VERSION = 1
+SAVE_VERSION = 2   # 2: Player.partner became a stage on a Player.cast entry
 
 _save_dir = None
 
@@ -84,12 +84,49 @@ def read(slot):
         player.job_id = None   # job was removed from the game since this save
     player.cyberware = [c for c in player.cyberware if any(cw["id"] == c for cw in data.CYBERWARE)]
     player.skills = {k: player.skills.get(k, 1) for k in Player(name="", handle="", background="").skills}
-    if not (isinstance(player.partner, dict) and isinstance(player.partner.get("name"), str)):
-        player.partner = None
+    player.cast = _load_cast(player.cast, fields.get("partner") if version < 2 else None,
+                             player.day)
+    romance.ensure_cast(player)
     player.save_slot = slot
     player.clamp()
     _ = missing   # tolerated by design: older saves simply take current defaults
     return player
+
+
+_TRAITS = {"occupation": data.DATE_OCCUPATIONS, "temperament": data.DATE_TEMPERAMENTS,
+           "value": data.DATE_VALUES, "peeve": data.DATE_PEEVES, "chrome": data.DATE_CHROME}
+
+
+def _cast_member(entry):
+    """A stored cast entry with any missing relationship fields filled in, or None if it's
+    unusable (not a dict, no name, or traits that no longer exist in the game)."""
+    if not (isinstance(entry, dict) and isinstance(entry.get("name"), str)):
+        return None
+    member = {**romance.RELATIONSHIP, **entry}
+    interests = member.get("interests")
+    if (any(member.get(k) not in table for k, table in _TRAITS.items())
+            or not isinstance(interests, list) or len(interests) != 2
+            or any(i not in data.DATE_INTERESTS for i in interests)
+            or member["stage"] not in data.CAST_STAGES):
+        return None
+    return member
+
+
+def _load_cast(stored, old_partner, day):
+    """The cast from a save. A v1 save's `partner` joins it as the woman you're seeing."""
+    cast = [m for m in map(_cast_member, stored if isinstance(stored, list) else []) if m]
+    partner = _cast_member(old_partner)
+    if partner:
+        partner.update(stage="dating", times_met=data.DATE_MIN_MEETINGS,
+                       affection=data.DATE_PARTNER_AFFECTION, last_outcome=len(data.DATE_OUTCOMES) - 1,
+                       last_met_day=partner.get("since_day") or day)
+        partner.update(since_day=partner["last_met_day"], last_seen_day=day)
+        cast.insert(0, partner)
+    # One partner at most; anyone past the first goes back to being someone you've met.
+    dating = [m for m in cast if m["stage"] in data.PARTNER_STAGES]
+    for extra in dating[1:]:
+        extra["stage"] = "met"
+    return cast
 
 
 def describe(slot):

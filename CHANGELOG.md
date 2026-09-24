@@ -9,6 +9,36 @@ Every release carries a codename that riffs on what it introduced, and the coden
 
 ## [Unreleased]
 
+### Added
+
+- A cast of six women, generated with your character (the same `--seed` gives the same cast),
+  and they're the only people you meet at the Neon Lotus. When an encounter fires, one or two of
+  them are in, sitting in different spots. You approach one, or neither. Someone you've met
+  isn't a stranger any more: she's "here again", greets you the way your last night ended, and
+  (with `--llm` on) remembers it in conversation.
+- Relationships take time. Each conversation adds its score to how much she likes you, and she
+  only becomes your partner after at least three conversations, once she likes you enough and
+  the night goes well. A single perfect night now ends with a kiss, not a relationship. Walk
+  out on her, or have a night go badly enough, and she stays away from the bar for a few days.
+- "See her" on the day menu while you're together: one action point for one of her favourite
+  outings (40¢) or a night in (free). It lowers stress, gives you back some humanity, and keeps
+  her close. It's the one reliable way to get humanity back.
+- She has a life too. Go four days without seeing her, run with heat of 8 or more, or let your
+  humanity drop below 35 and she cools on you, a little every night, until she leaves. Stay close
+  for two weeks with things going well and she moves in, which halves your rent. Some nights
+  she calls because she needs 200¢; helping or refusing both stay with her.
+- Marrow sells a visa for two (25,000¢). Every ending says what became of her: whether she came
+  with you, was left asleep, or was the one who reported you missing.
+
+### Changed
+
+- Bar conversations cover her job, interests, values, pet peeve and view of chrome in a random
+  order each night, with no topic twice. Her job is no longer always the opener, and when there
+  are more topics than rounds, some go unmentioned.
+- Saves are now version 2. An older save's partner joins the cast as the woman you're seeing,
+  and the rest of the cast is generated when it loads. Stored women with missing fields or
+  traits no longer in the game are fixed or replaced.
+
 ## [0.2.0] — "Blade Rendezvous" — 2026-09-24
 
 NPCs find their voices through a local model or DeepSeek, and the Neon Lotus gets someone worth
