@@ -3,7 +3,7 @@ import random
 
 import time
 
-from . import actions, data, events, save
+from . import actions, data, events, romance, save
 from .player import Player
 from .ui import (QuitGame, say, hr, header, bar, bold, dim, red, green,
                  yellow, cyan, neon, menu, ask_text, ask_yes_no, pause)
@@ -101,6 +101,7 @@ def create_character():
     player = Player(name=name, handle=handle, background=bg,
                     credits=info["credits"], cred=info["cred"],
                     skills=dict(info["skills"]))
+    romance.ensure_cast(player)
     say()
     say(neon(f"Welcome to the Sprawl, {handle}."))
     _assign_slot(player)
@@ -112,7 +113,7 @@ def show_status(player):
     hr()
     rent_in = data.RENT_EVERY - (player.day - 1) % data.RENT_EVERY
     say(f" {bold(player.handle)} {dim('·')} {player.background} {dim('·')} "
-        f"Day {yellow(player.day)} {dim('·')} rent {player.rent}¢ due in {rent_in}d")
+        f"Day {yellow(player.day)} {dim('·')} rent {player.rent_due}¢ due in {rent_in}d")
     say(f" Credits {yellow(f'{player.credits}¢'):<16} Actions {cyan('◆' * player.energy)}{dim('◇' * (player.max_energy - player.energy))}")
     say(f" Health   {bar(player.health, player.max_health)} {player.health:>3}/{player.max_health}"
         f"   Stress   {bar(player.stress, 100, color=red)} {player.stress:>3}/100")
@@ -120,7 +121,11 @@ def show_status(player):
         f"   Cred {green(player.cred):<6} Heat {red(player.heat)}")
     sk = "  ".join(f"{s.capitalize()} {player.skill(s)}" for s in player.skills)
     job = player.job["name"] if player.job else dim("unemployed")
-    partner = f"   {dim('Seeing:')} {neon(player.partner['name'])}" if player.partner else ""
+    her = player.partner
+    partner = ""
+    if her:
+        seeing = "Living with:" if her["stage"] == "serious" else "Seeing:"
+        partner = f"   {dim(seeing)} {neon(her['name'])}"
     say(f" {dim(sk)}   {dim('Job:')} {job}{partner}")
     hr()
 
@@ -163,6 +168,11 @@ def day_loop(player):
             ("Train a skill", actions.train),
             ("Rest" + dim("  (+HP, -stress)"), actions.rest),
             ("Hit the bar" + dim("  (40¢, -stress)"), actions.bar),
+        ]
+        if player.partner:
+            options.append((f"See {player.partner['name']}" + dim("  (-stress, +humanity)"),
+                            actions.see_partner))
+        options += [
             ("Ripperdoc" + dim("  (cyberware, meds)"), actions.ripperdoc),
             ("See the fixer" + dim("  (the way out)"), actions.fixer),
         ]
@@ -191,15 +201,16 @@ def night(player):
     player.health += 3
     player.heat = max(0, player.heat - 1)
     if player.day % data.RENT_EVERY == 0:
-        if player.credits >= player.rent:
-            player.credits -= player.rent
-            say(dim(f"Rent auto-debited: -{player.rent}¢."))
+        if player.credits >= player.rent_due:
+            player.credits -= player.rent_due
+            say(dim(f"Rent auto-debited: -{player.rent_due}¢."))
         else:
             player.missed_rent += 1
             left = data.MAX_MISSED_RENT - player.missed_rent
             say(red(f"You can't make rent. Strike {player.missed_rent}/{data.MAX_MISSED_RENT}."))
             if left > 0:
                 say(red(f"{left} more and the landlord's drones change the locks."))
+    romance.night(player)
     say()
     events.night_event(player)
     say()
@@ -218,6 +229,10 @@ def ending(player, cause):
         "legend": f"Every fixer in {data.CITY} knows your name. You don't need a way out. You own the way in.",
     }
     say(text.get(cause or player.won, ""))
+    her = player.partner
+    if her:
+        key = "visa_together" if her["came_along"] else (cause or player.won)
+        say(data.REL_ENDINGS[key].format(name=her["name"]))
     say()
     say(dim(f"Survived {player.day - 1} days · {player.credits}¢ · cred {player.cred} · {len(player.cyberware)} pieces of chrome"))
     hr()

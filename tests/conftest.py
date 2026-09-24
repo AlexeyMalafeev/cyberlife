@@ -3,7 +3,7 @@ import socket
 
 import pytest
 
-from cyberlife import llm, save, ui
+from cyberlife import data, llm, romance, save, ui
 from cyberlife.player import Player
 
 
@@ -55,6 +55,16 @@ def seeded():
 @pytest.fixture
 def player():
     return Player(name="Kai", handle="Ghost", background="Street Kid", credits=1000)
+
+
+@pytest.fixture
+def dating(player):
+    """The `player`, with a full cast and the first of them as a partner. Returns her."""
+    romance.ensure_cast(player)
+    her = player.cast[0]
+    her.update(times_met=data.DATE_MIN_MEETINGS, affection=data.DATE_PARTNER_AFFECTION)
+    romance.start_relationship(player, her)
+    return her
 
 
 @pytest.fixture

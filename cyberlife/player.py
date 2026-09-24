@@ -25,7 +25,7 @@ class Player:
     energy_penalty: int = 0   # applied at the start of the next day
     won: str | None = None
     save_slot: int | None = None   # which slot this run autosaves to
-    partner: dict | None = None    # romance.generate() profile plus since_day, once you're together
+    cast: list = field(default_factory=list)   # the women you can meet; see romance.new_member()
 
     # -- derived stats -------------------------------------------------
 
@@ -40,6 +40,17 @@ class Player:
     def job(self):
         """The current job's data dict, or None. Set via job_id so state stays JSON-safe."""
         return data.job_by_id(self.job_id) if self.job_id else None
+
+    @property
+    def partner(self):
+        """The cast member you're seeing, or None. Set her "stage" to change it."""
+        return next((c for c in self.cast if c["stage"] in data.PARTNER_STAGES), None)
+
+    @property
+    def rent_due(self):
+        """Rent actually charged: split once she's moved in."""
+        partner = self.partner
+        return self.rent // 2 if partner and partner["stage"] == "serious" else self.rent
 
     def skill(self, name):
         return self.skills[name] + self._bonus(name)

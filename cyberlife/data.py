@@ -220,6 +220,24 @@ ENCOUNTER_CHANCE = 0.3   # per bar visit, while you're single
 DATE_ROUNDS = 5          # exchanges in the conversation
 DATE_WALKOUT = -3        # net score at which she leaves before the last round
 
+# The cast: the same few women, generated at character creation, are the only ones you meet.
+# Each conversation adds its net score to her affection. She'll start something only once
+# you've talked enough times, she likes you enough, and the night itself goes well.
+CAST_SIZE = 6
+# Where each of them stands with you, in order. "gone" is someone who left you.
+CAST_STAGES = ("stranger", "met", "dating", "serious", "gone")
+PARTNER_STAGES = ("dating", "serious")
+DATE_AT_BAR = (1, 2)            # how many of them are in when an encounter fires
+DATE_MIN_MEETINGS = 3           # conversations (including tonight's) before she's your partner
+DATE_PARTNER_AFFECTION = 10     # affection (including tonight's net) she needs to get there
+DATE_PARTNER_NET = 3            # ...and tonight's net score
+DATE_AVOID_NET = -2             # a night this bad, or a walkout, and she stays away...
+DATE_AVOID_DAYS = 5             # ...for this many days
+BAR_SPOTS = [
+    "two stools down", "at the end of the bar", "in the corner booth", "by the jukebox",
+    "under the flickering holo-sign", "at the window counter", "near the door",
+]
+
 DATE_NAMES = [
     "Mira", "Yuki", "Zara", "Nadia", "Rin", "Lena", "Ines", "Kaya", "Tamsin", "Oksana",
     "Suki", "Vesna", "Dalia", "Noor", "Ada", "Petra", "Jin", "Lux", "Marisol", "Freya",
@@ -262,16 +280,23 @@ DATE_LOOKS = {
     ],
 }
 
-# Canned opening scene. Slots come from DATE_LOOKS, plus {hint} from her temperament.
+# Canned opening scene. Slots come from DATE_LOOKS, plus {spot} from BAR_SPOTS and {hint} from
+# her temperament.
 DATE_SCENES = [
-    "Two stools down sits a {build} woman with {hair} and {eyes}, wearing {style}. "
-    "You notice {feature}. {hint}",
-    "A {build} woman at the end of the bar is nursing a drink alone: {hair}, {eyes}, {style}. "
+    "A {build} woman sits {spot}: {hair}, {eyes}, {style}. You notice {feature}. {hint}",
+    "There's a {build} woman {spot}, nursing a drink alone: {hair}, {eyes}, {style}. "
     "Hard to miss {feature}. {hint}",
-    "The seat next to yours is taken by a {build} woman in {style}. She has {hair}, {eyes} "
+    "A {build} woman in {style} has taken a seat {spot}. She has {hair}, {eyes} "
     "and {feature}. {hint}",
-    "Through the smoke you catch a {build} woman with {hair}, {eyes} and {feature}, "
+    "Through the smoke you catch a {build} woman {spot}, with {hair}, {eyes} and {feature}, "
     "in {style}. {hint}",
+]
+
+# Someone you've already met. {mood} is the "again" line of how your last night together ended.
+DATE_AGAIN = [
+    "{name} is {spot} again, in {style}. {mood}",
+    "You spot {name} {spot}. {mood}",
+    "{name}'s here tonight, {spot}. {mood}",
 ]
 
 # Personality. Each id maps to a weight and a description a dialog model sees; the player
@@ -375,6 +400,7 @@ DATE_OCCUPATIONS = {
 
 DATE_INTERESTS = {
     "films": {"weight": 3, "label": "old flat films",
+              "outing": "a reel screening under the old metro",
               "lines": ["There's a place under the old metro that still runs films off real reels.",
                         "I watched a black-and-white movie last night. Nobody even had chrome."],
               "good": ["Real reels? I'd sit in the dark with you for that.",
@@ -382,6 +408,7 @@ DATE_INTERESTS = {
               "bad": ["Why watch flat stuff when you can braindance it?",
                       "I can't sit still for anything longer than a feed clip."]},
     "synth": {"weight": 3, "label": "live synth music",
+              "outing": "a synth set at a basement club",
               "lines": ["You hear that bassline? The trio's actually good tonight.",
                         "I'd kill to hear a real analog synth once. Not a sample. The real thing."],
               "good": ["They are. The one on the left plays like she's arguing with it.",
@@ -389,6 +416,7 @@ DATE_INTERESTS = {
               "bad": ["Honestly I tune it out. It's just noise to drink to.",
                       "Real or sample, who can even tell anymore?"]},
     "racing": {"weight": 2, "label": "illegal street racing",
+               "outing": "the ring road races, from the barrier",
                "lines": ["There's a race on the ring road Sunday. No rules, no cops, no brakes if you're brave.",
                          "Nothing beats the ring road at three in the morning with the throttle open."],
                "good": ["Save me a spot on the barrier. Or on the back of your bike.",
@@ -396,6 +424,7 @@ DATE_INTERESTS = {
                "bad": ["Those races kill somebody every week. Not my scene.",
                        "Sounds like a good way to end up in a clinic."]},
     "cooking": {"weight": 2, "label": "cooking real food",
+                "outing": "cooking something real at her place",
                 "lines": ["I found real garlic at the market. Actual garlic. I nearly cried.",
                           "Vat-meat's fine if you know what to do with it. Most people don't."],
                 "good": ["Real garlic? What are you making with it?",
@@ -403,6 +432,7 @@ DATE_INTERESTS = {
                 "bad": ["I just microwave whatever's in the machine.",
                         "Food's food. As long as it's cheap."]},
     "art": {"weight": 2, "label": "street art and murals",
+            "outing": "a walk to find new murals",
             "lines": ["Someone painted a whale on the side of the Vexcorp stack. It's gone by morning, always.",
                       "I've been mapping every mural in the Sprawl before the corps paint over them."],
             "good": ["Gone by morning makes it better, somehow. Someone was brave for one night.",
@@ -410,6 +440,7 @@ DATE_INTERESTS = {
             "bad": ["Vandalism, basically. The walls look cleaner blank.",
                     "Why bother? They'll just paint over it."]},
     "books": {"weight": 2, "label": "paper books",
+              "outing": "the paper-book stalls in the Undercity",
               "lines": ["I collect paper books. They can't update them on you.",
                         "Found a paper book in a dumpster today. Poems, water-stained. Best thing all week."],
               "good": ["Can't hack paper. That's the whole appeal, isn't it?",
@@ -417,6 +448,7 @@ DATE_INTERESTS = {
               "bad": ["Paper? Everything's on the feed, and it's free.",
                       "I haven't read anything longer than a message in years."]},
     "animals": {"weight": 1, "label": "real animals",
+                "outing": "feeding the pigeons at the old station",
                 "lines": ["I feed a stray cat behind my building. A real one. No chrome, no subscription.",
                           "Did you know there are still real pigeons in the old station? I counted."],
                 "good": ["A real cat. Does it have a name, or is it too proud for one?",
@@ -424,6 +456,7 @@ DATE_INTERESTS = {
                 "bad": ["Strays carry who knows what. I'd call pest control.",
                         "Robo-pets are cleaner. No mess."]},
     "stars": {"weight": 1, "label": "the stars above the smog",
+              "outing": "her roof, looking for her three stars",
               "lines": ["On a clear night you can see three stars from my roof. I named them.",
                         "Sometimes I think about what the sky looked like before the smog."],
               "good": ["Show me which three sometime. I've never looked up long enough.",
@@ -431,6 +464,7 @@ DATE_INTERESTS = {
               "bad": ["Stars? You can see better ones on any holo-ad.",
                       "Nobody looks up here. There's nothing to see."]},
     "games": {"weight": 2, "label": "old arcade games",
+              "outing": "the Undercity arcade, for a rematch",
               "lines": ["There's an arcade in the Undercity with cabinets older than my grandmother.",
                         "I hold the high score on a machine nobody else plays. Undefeated."],
               "good": ["Older than your grandmother and still running. Take me.",
@@ -438,6 +472,7 @@ DATE_INTERESTS = {
               "bad": ["Arcades? I thought those died with pay phones.",
                       "I don't really play games. Waste of time."]},
     "dance": {"weight": 2, "label": "dancing until sunrise",
+              "outing": "a club with no name, until sunrise",
               "lines": ["The best clubs are the ones that don't have a name. You just follow the bass.",
                         "I haven't danced until sunrise in months. I miss it."],
               "good": ["Then let's find one with no name. I'll follow you.",
@@ -581,33 +616,104 @@ DATE_REACTIONS = {
 
 # How the night ends, worst to best. The net score (+1 per good reply, -1 per bad, so
 # -DATE_ROUNDS..DATE_ROUNDS) picks the best tier whose "min_net" it reaches; walking out always
-# lands in the first. "prompt" tells a dialog model how she says goodbye; "canned" is her line
-# without one. Stress relief is the only payoff (see CLAUDE.md balance notes); the top tier
-# also makes her your partner.
+# lands in the first. The last tier ("partner") is only open once she's ready (see
+# DATE_MIN_MEETINGS), so a single perfect night tops out at the kiss. "prompt" tells a dialog
+# model how she says goodbye; "canned" is her line without one. "memory" is how she remembers
+# the night next time, "again" how she greets you. Stress relief is the only payoff (see the
+# CLAUDE.md balance notes); the last tier also makes her your partner.
 DATE_OUTCOMES = [
     {"prompt": "You've had enough of this person. End it coldly and leave.",
      "canned": ["I'm going to go. Don't follow me.", "Wow. Okay. Goodnight."],
      "min_net": -DATE_ROUNDS,
-     "narration": "She slides off the stool and leaves her drink unfinished.", "stress": 5},
+     "narration": "She slides off the stool and leaves her drink unfinished.", "stress": 5,
+     "memory": "it went badly and you walked out on them",
+     "again": "She sees you, and her face closes like a door."},
     {"prompt": "Make a polite excuse and leave. You're not interested.",
      "canned": ["Well. Nice meeting you. I should go.", "Early shift. Take care."],
      "min_net": -1,
-     "narration": "She finishes her drink a little too quickly.", "stress": 0},
+     "narration": "She finishes her drink a little too quickly.", "stress": 0,
+     "memory": "it was awkward and you made an excuse to leave",
+     "again": "She notices you and gives a small, careful nod."},
     {"prompt": "Say a friendly goodbye. It was nice, but nothing more.",
      "canned": ["This was nice. Take care of yourself out there.", "Thanks for the company."],
      "min_net": 1,
-     "narration": "You talk until the ice melts. Pleasant, but nothing sparks.", "stress": -3},
+     "narration": "You talk until the ice melts. Pleasant, but nothing sparks.", "stress": -3,
+     "memory": "it was pleasant, but nothing sparked",
+     "again": "She recognises you and lifts her glass an inch."},
     {"prompt": "You enjoyed this. Hint you might like to run into them here again.",
      "canned": ["If I'm here again, you can buy the next one.", "You're not the worst company in here."],
      "min_net": 2,
-     "narration": "She laughs at your jokes and touches your arm once on the way out.", "stress": -5},
+     "narration": "She laughs at your jokes and touches your arm once on the way out.", "stress": -5,
+     "memory": "you enjoyed it and hoped to run into them again",
+     "again": "She catches your eye and pats the empty stool beside her."},
     {"prompt": "You really like them, but you're not ready for more yet. Say goodnight warmly.",
      "canned": ["I like you. That's what worries me. Goodnight.", "Ask me again some other night."],
      "min_net": 4,
      "narration": "Outside, under the dripping neon, she kisses you. Then she's gone into the rain.",
-     "stress": -8},
+     "stress": -8,
+     "memory": "you kissed them goodnight in the rain",
+     "again": "She sees you and smiles before she can stop herself."},
     {"prompt": "You want to keep seeing them, starting tonight. Ask them to walk you home.",
      "canned": ["Walk me home? And then tomorrow, too.", "I'm not letting you disappear. Walk with me."],
-     "min_net": 5,
-     "narration": "She walks out with you, and doesn't let go of your hand.", "stress": -10},
+     "min_net": DATE_PARTNER_NET, "partner": True,
+     "narration": "She walks out with you, and doesn't let go of your hand.", "stress": -10,
+     "memory": "you asked them to walk you home",
+     "again": "She's already waving you over."},
 ]
+
+# -- Relationships ----------------------------------------------------
+# Once she's your partner. Seeing her is the one reliable humanity source in the game, and it
+# costs a whole action point you could have spent on rent. Neglect her, run too hot, or lose
+# too much of yourself to chrome and she'll leave.
+
+REL_NEGLECT_DAYS = 4          # nights apart before affection starts slipping, one a night
+REL_WORRY_HEAT = 8            # heat at which she starts worrying about you...
+REL_WORRY_HUMANITY = 35       # ...or humanity below which she does
+REL_WORRY_COST = 2            # affection lost per worried night
+REL_LEAVE_AFFECTION = 5       # below this she's gone
+REL_LEAVE_STRESS = 20
+REL_SERIOUS_AFFECTION = 25    # she moves in once affection reaches this...
+REL_SERIOUS_DAYS = 14         # ...after this many days together
+REL_ASK_COST = 200            # what she asks for when she's in trouble
+REL_ASK_AFFECTION = 3         # won by helping, lost by refusing
+
+# Time together. Her two interests each suggest an outing (DATE_INTERESTS "outing"); staying
+# in is free and calmer but does less for her.
+REL_OUTING = {"cost": 40, "stress": -10, "humanity": 3, "affection": 2}
+REL_STAY_IN = {"label": "Stay in at your place", "cost": 0, "stress": -14, "humanity": 2,
+               "affection": 1}
+REL_TOGETHER = [
+    "I needed this. I needed you, I think.",
+    "Same time tomorrow? I'm only half joking.",
+    "You're the only quiet thing in this whole city.",
+    "Don't go getting yourself killed. I'm getting used to you.",
+]
+
+REL_NEGLECTED = [
+    "{name} messages: \"Still alive?\" You don't answer in time.",
+    "You haven't seen {name} in days. Her last message sits unread.",
+]
+REL_WORRIED = [
+    "{name} traces the new scar on your hand and doesn't say anything. That's worse.",
+    "{name} asks who you're turning into. You don't have a good answer.",
+]
+REL_LEAVES = "{name} leaves her key on the table. She doesn't leave a note."
+REL_MOVES_IN = "{name} turns up with two bags and a plant. She's moving in. Rent's split now."
+REL_ASKS = [
+    "Her clinic bill came in and it's more than she has.",
+    "Her landlord wants a deposit back by morning, or she's out.",
+    "Her bike got impounded. She needs it for work tomorrow.",
+]
+
+# What happens to her in each ending. "visa" is for leaving without her; "visa_together" when
+# you bought two.
+REL_ENDINGS = {
+    "flatlined": "{name} is the one who reports you missing. Nobody listens.",
+    "cyberpsychosis": "{name} still keeps a light on for you. You don't remember her name.",
+    "burnout": "{name} sits by the bed for a week, then has to go back to work.",
+    "evicted": "{name} helps you carry the bag. Then she's gone too.",
+    "visa": "{name} is still asleep when you leave. You meant to tell her.",
+    "visa_together": "{name} falls asleep on your shoulder before the shuttle clears the smog.",
+    "legend": "{name} stays. Somebody has to remember who you were before.",
+}
+VISA_FOR_TWO = 25_000

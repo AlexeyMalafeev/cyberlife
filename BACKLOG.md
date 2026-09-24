@@ -122,11 +122,31 @@ restart the introduction.
 
 ---
 
-## 4. Relationship development
+## 4. Relationship development — ✅ first pass done
 
-**Depends on:** item 3, and best built on item 7's persistent cast. `Player.partner` already holds the full generated profile (ids into
-the `data.DATE_*` tables plus `since_day`), so her interests and peeves can drive this item's
-content. It's a single partner, not a dict of relationships yet.
+Shipped with item 7: "See her" day action (her two interests' outings at 40¢, or a free night
+in: -stress, +humanity, +affection), `romance.night` drift, a "she needs money" night event,
+move-in at `REL_SERIOUS_AFFECTION` after `REL_SERIOUS_DAYS` together (halves rent through
+`Player.rent_due`), a visa for two at the fixer, and a partner line in every ending.
+
+Decisions made along the way:
+
+- **No `Relationship` dataclass or `relationships` dict.** State lives on the cast entry
+  (item 7) as plain JSON fields, so saves need no custom encoding. One partner at a time.
+- Stages are `stranger → met → dating → serious`, plus `gone` for someone who left you.
+  An ex never shows up at the bar again.
+- Heat and humanity don't make her leave outright. Each night above `REL_WORRY_HEAT` or below
+  `REL_WORRY_HUMANITY` costs affection, like neglect does, and she leaves below
+  `REL_LEAVE_AFFECTION`. That gives the player a few nights of warning.
+- She learns your real name once you're together (the persona gets it); strangers only know
+  your handle.
+- Encounters still stop while you have a partner. Nothing yet for meeting others behind her back.
+
+Still open: gear or a fixer contact from a serious partner, asks that constrain play ("stop
+taking gigs for a week") beyond the money request, what a partner knows about you as explicit
+flags, and her voice at the "See her" menu beyond one closing line. The original notes follow.
+
+**Depends on:** item 3, and best built on item 7's persistent cast.
 
 **Shape**
 
@@ -222,7 +242,28 @@ difficulty existed loads at the default.
 
 ---
 
-## 7. A persistent cast: the same people, met more than once
+## 7. A persistent cast: the same people, met more than once — ✅ done
+
+Shipped: `Player.cast` (`data.CAST_SIZE` = 6, made by `romance.ensure_cast` at character
+creation), one or two of them at the bar per encounter (`DATE_AT_BAR`) in distinct
+`BAR_SPOTS`, a "here again" greeting drawn from how your last night ended (`DATE_OUTCOMES`
+`again`), and the model told how many times you've met and how it last went (`memory`).
+Partner needs `DATE_MIN_MEETINGS` (3) conversations, `DATE_PARTNER_AFFECTION` (10) and a
+night netting at least `DATE_PARTNER_NET` (3). A walkout or a night at `DATE_AVOID_NET` or
+worse keeps her away for `DATE_AVOID_DAYS`. `SAVE_VERSION` is 2; a v1 `partner` migrates in as
+the woman you're seeing.
+
+Decisions made along the way:
+
+- The "walk me home" tier is gated rather than scored: it needs her to be ready, but then only
+  a good night (net 3), not a perfect one. A first perfect night ends at the kiss.
+- The returning-woman greeting is stock text only; the model still narrates strangers.
+- Topics are no longer "her work first". All five or six are shuffled every night and five
+  are used, so repeat conversations don't follow the same order.
+- Old saves get a freshly generated cast when loaded. That draws from `random`, which is fine
+  because a loaded run isn't seed-reproducible anyway.
+
+The original notes follow.
 
 **Depends on:** item 3 (shipped first pass). Do this before item 4, which should build on it.
 

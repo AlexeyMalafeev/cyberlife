@@ -1,4 +1,4 @@
-"""Bar encounters: meet someone, talk, maybe start something.
+"""The cast: women you meet at the bar, talk to over several nights, and maybe end up with.
 
 Everything mechanical happens in Python first: who she is, what each round is about, which
 reply is good/bad/neutral and in what order they're shown. The dialog model (if any) only
@@ -8,7 +8,7 @@ or not a model is on, so a --seed plays out the same either way.
 import random
 
 from . import data, llm
-from .ui import say, dim, cyan, green, neon, menu, ask_yes_no
+from .ui import say, dim, cyan, green, red, neon, menu, ask_yes_no
 
 KINDS = ("good", "bad", "neutral")
 SCORE = {"good": 1, "bad": -1, "neutral": 0}
@@ -27,12 +27,15 @@ def _pick(table):
     return random.choices(phrases, weights)[0]
 
 
-def generate():
-    """A new woman at the bar, as a JSON-safe dict: appearance phrases plus personality ids."""
+def generate(taken=()):
+    """A new woman, as a JSON-safe dict: appearance phrases plus personality ids.
+
+    `taken` names are skipped, so a cast never has two women with the same name.
+    """
     first = _pick(data.DATE_INTERESTS)
     rest = {k: v for k, v in data.DATE_INTERESTS.items() if k != first}
     return {
-        "name": random.choice(data.DATE_NAMES),
+        "name": random.choice([n for n in data.DATE_NAMES if n not in taken]),
         "age": random.randint(*data.DATE_AGES),
         **{part: _pick(options) for part, options in data.DATE_LOOKS.items()},
         "temperament": _pick(data.DATE_TEMPERAMENTS),
@@ -44,14 +47,34 @@ def generate():
     }
 
 
+# Relationship state every cast member carries next to her profile.
+RELATIONSHIP = {"stage": "stranger", "times_met": 0, "affection": 0, "last_met_day": None,
+                "last_outcome": None, "avoid_until": 0, "since_day": None,
+                "last_seen_day": None, "came_along": False}
+
+
+def new_member(taken=()):
+    return {**generate(taken), **RELATIONSHIP}
+
+
+def ensure_cast(player):
+    """Top the cast up to data.CAST_SIZE. Character creation calls this; so do loads of saves
+    from before the cast existed."""
+    while len(player.cast) < data.CAST_SIZE:
+        player.cast.append(new_member({c["name"] for c in player.cast}))
+    return player.cast
+
+
 def plan_topics(her):
-    """What each round is about: her work first, then a shuffled mix of the rest."""
-    rest = [("interest", i) for i in her["interests"]]
-    rest += [("value", her["value"]), ("peeve", her["peeve"])]
+    """What each round is about: a shuffled pick of everything there is to know about her.
+
+    No topic comes up twice in one night. With more topics than rounds, some go unmentioned.
+    """
+    topics = [("occupation", her["occupation"]), ("value", her["value"]), ("peeve", her["peeve"])]
+    topics += [("interest", i) for i in her["interests"]]
     if her["chrome"] != "indifferent":
-        rest.append(("chrome", her["chrome"]))
-    random.shuffle(rest)
-    return [("occupation", her["occupation"])] + rest[:data.DATE_ROUNDS - 1]
+        topics.append(("chrome", her["chrome"]))
+    return random.sample(topics, data.DATE_ROUNDS)
 
 
 def _topic_entry(kind, key):
@@ -62,14 +85,29 @@ def _topic_entry(kind, key):
 
 # -- prompts -------------------------------------------------------------
 
+def _situation(her, player):
+    """Where you two stand, for the persona prompt."""
+    if her["stage"] in data.PARTNER_STAGES:
+        home = " and they live with you now" if her["stage"] == "serious" else ""
+        return (f"You're together{home}. Their real name is {player.name}; on the street they "
+                f"go by {player.handle}.\n")
+    if her["times_met"] == 0:
+        return (f"You're at the bar of the Neon Lotus. A stranger just took the stool next to "
+                f"yours and you swapped names: they go by {player.handle}. Any reply that "
+                f"gives the stranger's name uses {player.handle}.\n")
+    times = "once" if her["times_met"] == 1 else f"{her['times_met']} times"
+    memory = data.DATE_OUTCOMES[her["last_outcome"]]["memory"]
+    return (f"You're at the bar of the Neon Lotus. You've talked with {player.handle} here "
+            f"{times} before; last time {memory}. They just sat down next to you again. You "
+            f"already know each other's names, so don't introduce yourselves.\n")
+
+
 def _persona(her, player):
     chrome = [cw["name"] for cw in data.CYBERWARE if player.has(cw["id"])]
     interests = " and ".join(data.DATE_INTERESTS[i]["label"] for i in her["interests"])
     return (
         f"You are {her['name']}, {her['age']}, {data.DATE_OCCUPATIONS[her['occupation']]['desc']} "
-        f"in {data.CITY}, 2087, a cyberpunk megacity. You're at the bar of the Neon Lotus. A "
-        f"stranger just took the stool next to yours and you swapped names: they go by "
-        f"{player.handle}. Any reply that gives the stranger's name uses {player.handle}.\n"
+        f"in {data.CITY}, 2087, a cyberpunk megacity. {_situation(her, player)}"
         f"Your look: {her['build']}, {her['hair']}, {her['eyes']}, {her['style']}, {her['feature']}.\n"
         f"Your manner: {data.DATE_TEMPERAMENTS[her['temperament']]['desc']}. "
         f"You love {interests}. What matters most to you: {data.DATE_VALUES[her['value']]['desc']}. "
@@ -133,13 +171,13 @@ def round_messages(her, player, topic, history, last):
     return [{"role": "system", "content": _persona(her, player)}, {"role": "user", "content": user}]
 
 
-def scene_messages(her, hint, example):
+def scene_messages(her, spot, hint, example):
     occupation = data.DATE_OCCUPATIONS[her["occupation"]]["desc"]
     system = (f"You narrate a text game set in {data.CITY}, 2087, a cyberpunk megacity. "
               "Second person, present tense, terse and atmospheric.")
     user = (
         "In two or three short sentences (under 60 words), describe the player noticing a young "
-        "woman at the bar of the Neon Lotus.\n"
+        f"woman at the Neon Lotus. She's {spot}.\n"
         f"Her look: {her['build']}, {her['hair']}, {her['eyes']}, {her['style']}, {her['feature']}.\n"
         f"Maybe a visual clue to her work ({occupation}), nothing more.\n"
         f"End on this small detail, in your own words: {hint}\n"
@@ -158,11 +196,18 @@ def closing_messages(her, player, history, ending, example):
 
 # -- words: stock first, then the model if it has something usable ------------------
 
-def scene(her):
-    """The opening description: her looks and one vague hint, never her personality."""
+def scene(her, spot):
+    """How you notice her tonight.
+
+    A stranger gets her looks and one vague hint, never her personality. Someone you've met
+    gets a line that shows how your last night together went.
+    """
+    if her["times_met"]:
+        mood = data.DATE_OUTCOMES[her["last_outcome"]]["again"]
+        return random.choice(data.DATE_AGAIN).format(spot=spot, mood=mood, **her)
     hint = random.choice(data.DATE_TEMPERAMENTS[her["temperament"]]["hints"])
-    canned = random.choice(data.DATE_SCENES).format(hint=hint, **her)
-    text = llm.sanitize(llm.complete(scene_messages(her, hint, canned), max_tokens=160),
+    canned = random.choice(data.DATE_SCENES).format(spot=spot, hint=hint, **her)
+    text = llm.sanitize(llm.complete(scene_messages(her, spot, hint, canned), max_tokens=160),
                         limit=SCENE_LIMIT)
     return text or canned
 
@@ -203,11 +248,12 @@ def _her_line(her, line):
     say(f"{cyan(her['name'])}: {dim(line)}")
 
 
-def outcome(net, walked_out):
-    """The DATE_OUTCOMES entry for a finished conversation."""
+def outcome(net, walked_out, ready=False):
+    """The DATE_OUTCOMES entry for a finished conversation. `ready`: she could become your partner."""
     if walked_out:
         return data.DATE_OUTCOMES[0]
-    return [o for o in data.DATE_OUTCOMES if net >= o["min_net"]][-1]
+    return [o for o in data.DATE_OUTCOMES
+            if net >= o["min_net"] and (ready or not o.get("partner"))][-1]
 
 
 def chat(player, her):
@@ -233,25 +279,109 @@ def chat(player, her):
     return net, False, history
 
 
+def present(player):
+    """Who's at the bar tonight: one or two cast members willing to talk to you."""
+    pool = [c for c in player.cast
+            if c["stage"] in ("stranger", "met") and c["avoid_until"] <= player.day]
+    count = min(len(pool), random.choice(data.DATE_AT_BAR))
+    return random.sample(pool, count)
+
+
+def _choose(here, spots):
+    """Which of them you approach, or None."""
+    if len(here) == 1:
+        her = here[0]
+        return her if ask_yes_no("Try your luck?" if not her["times_met"]
+                                 else f"Join {her['name']}?") else None
+    labels = [f"{her['name']}, {spot}" if her["times_met"] else f"The woman {spot}"
+              for her, spot in zip(here, spots)]
+    choice = menu("Who do you approach?", labels + [dim("Neither")])
+    return here[choice] if choice < len(here) else None
+
+
 def encounter(player):
-    """Maybe meet someone at the bar. Returns None if nobody did, else the stress change to report."""
+    """Maybe someone from the cast is at the bar. Returns None if nobody is, else the stress
+    change to report."""
     if player.partner is not None or random.random() >= data.ENCOUNTER_CHANCE:
         return None
-    her = generate()
-    say()
-    say(neon(scene(her)))
-    if not ask_yes_no("Try your luck?"):
+    ensure_cast(player)
+    here = present(player)
+    if not here:
+        return None
+    spots = random.sample(data.BAR_SPOTS, len(here))
+    for her, spot in zip(here, spots):
+        say()
+        say(neon(scene(her, spot)))
+    her = _choose(here, spots)
+    if her is None:
         say(dim("You let the moment pass. Probably for the best. Probably."))
         return 0
-    say(dim(f"You slide onto the stool next to her and trade names over the noise. "
-            f"She's {her['name']}."))
+    if her["times_met"]:
+        say(dim(f"You take the stool next to {her['name']}. She remembers your handle."))
+    else:
+        say(dim(f"You slide onto the stool next to her and trade names over the noise. "
+                f"She's {her['name']}."))
     net, walked_out, history = chat(player, her)
-    ending = outcome(net, walked_out)
+    ready = (her["times_met"] + 1 >= data.DATE_MIN_MEETINGS
+             and her["affection"] + net >= data.DATE_PARTNER_AFFECTION)
+    ending = outcome(net, walked_out, ready)
     say()
-    _her_line(her, closing(her, player, history, ending))
+    _her_line(her, closing(her, player, history, ending))   # she still remembers the old night
     say(dim(ending["narration"]))
+    her.update(stage="met", times_met=her["times_met"] + 1, affection=her["affection"] + net,
+               last_met_day=player.day, last_outcome=data.DATE_OUTCOMES.index(ending))
+    if walked_out or net <= data.DATE_AVOID_NET:
+        her["avoid_until"] = player.day + data.DATE_AVOID_DAYS
     player.stress += ending["stress"]
-    if ending is data.DATE_OUTCOMES[-1]:
-        player.partner = {**her, "since_day": player.day}
+    if ending.get("partner"):
+        start_relationship(player, her)
         say(green(f"You're seeing {her['name']} now."))
     return ending["stress"]
+
+
+# -- together ------------------------------------------------------------
+
+def start_relationship(player, her):
+    her.update(stage="dating", since_day=player.day, last_seen_day=player.day)
+
+
+def outings(her):
+    """[(label, effects)] for time together: her interests' outings, then staying in."""
+    options = [(data.DATE_INTERESTS[i]["outing"], data.REL_OUTING) for i in her["interests"]]
+    return options + [(data.REL_STAY_IN["label"], data.REL_STAY_IN)]
+
+
+def together_messages(her, player, activity, example):
+    user = (f"You and {player.handle} just spent the evening together: {activity}. Say one "
+            "thing to them as it winds down. One line, under 25 words, spoken dialog only.\n"
+            f"For tone only, don't reuse its wording: {example}")
+    return [{"role": "system", "content": _persona(her, player)}, {"role": "user", "content": user}]
+
+
+def together_line(her, player, activity):
+    canned = random.choice(data.REL_TOGETHER)
+    text = llm.complete(together_messages(her, player, activity, canned))
+    return llm.sanitize(text, her["name"]) or canned
+
+
+def night(player):
+    """Nightly drift for your partner: neglect and worry cost affection; too little and she
+    leaves, enough for long enough and she moves in."""
+    her = player.partner
+    if her is None:
+        return
+    name = her["name"]
+    if player.day - her["last_seen_day"] >= data.REL_NEGLECT_DAYS:
+        her["affection"] -= 1
+        say(dim(random.choice(data.REL_NEGLECTED).format(name=name)))
+    if player.heat >= data.REL_WORRY_HEAT or player.humanity < data.REL_WORRY_HUMANITY:
+        her["affection"] -= data.REL_WORRY_COST
+        say(dim(random.choice(data.REL_WORRIED).format(name=name)))
+    if her["affection"] < data.REL_LEAVE_AFFECTION:
+        her["stage"] = "gone"
+        player.stress += data.REL_LEAVE_STRESS
+        say(red(data.REL_LEAVES.format(name=name)))
+    elif (her["stage"] == "dating" and her["affection"] >= data.REL_SERIOUS_AFFECTION
+          and player.day - her["since_day"] >= data.REL_SERIOUS_DAYS):
+        her["stage"] = "serious"
+        say(green(data.REL_MOVES_IN.format(name=name)))

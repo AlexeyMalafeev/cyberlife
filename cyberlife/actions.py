@@ -187,6 +187,30 @@ def bar(player):
     return True
 
 
+def see_partner(player):
+    """An evening with your partner: -stress, +humanity, +affection, one action point."""
+    her = player.partner
+    options = romance.outings(her)
+    labels = [f"{label:<44} {yellow(str(fx['cost']) + '¢')}" if fx["cost"] else label
+              for label, fx in options]
+    choice = menu(f"Spend the evening with {her['name']}:", labels + [dim("Never mind")])
+    if choice == len(options):
+        return False
+    label, fx = options[choice]
+    if player.credits < fx["cost"]:
+        say(red("You can't cover it tonight."))
+        return False
+    player.credits -= fx["cost"]
+    player.stress += fx["stress"]
+    player.humanity += fx["humanity"]
+    her["affection"] += fx["affection"]
+    her["last_seen_day"] = player.day
+    say(f"{cyan(her['name'])}: {dim(romance.together_line(her, player, label))}")
+    _report(_delta("¢", -fx["cost"]), _delta("stress", fx["stress"], False),
+            _delta("humanity", fx["humanity"]))
+    return True
+
+
 # -- Shops ------------------------------------------------------------
 
 def ripperdoc(player):
@@ -238,13 +262,23 @@ def ripperdoc(player):
 
 def fixer(player):
     header("Marrow's Booth, back of the Neon Lotus")
+    her = player.partner
     can_afford = player.credits >= data.VISA_COST
     llm.speak("marrow", player, "booth_ready" if can_afford else "booth_broke")
     say(f"  Forged orbital visa: {yellow(str(data.VISA_COST) + '¢')}   (you have {player.credits}¢)")
+    if her:
+        say(f"  Two, so {her['name']} comes too: {yellow(str(data.VISA_FOR_TWO) + '¢')}")
     say(f"  Or make a name for yourself: street cred {player.cred}/{data.LEGEND_CRED}")
     say()
+    if her and player.credits >= data.VISA_FOR_TWO:
+        if ask_yes_no(f"Buy two visas and leave with {her['name']}?"):
+            player.credits -= data.VISA_FOR_TWO
+            her["came_along"] = True
+            player.won = "visa"
+            return True
     if can_afford:
-        if ask_yes_no("Buy the visa and leave the city for good?"):
+        alone = f" without {her['name']}" if her else " for good"
+        if ask_yes_no(f"Buy the visa and leave the city{alone}?"):
             player.credits -= data.VISA_COST
             player.won = "visa"
             return True

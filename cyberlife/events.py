@@ -128,6 +128,20 @@ def quiet_dream(p):
     _r(green("+4 humanity"))
 
 
+def partner_needs(p):
+    her = p.partner
+    say(f"{her['name']} calls, late. {random.choice(data.REL_ASKS)}")
+    cost = data.REL_ASK_COST
+    if ask_yes_no(f"Send her {cost}¢?"):
+        p.credits -= cost
+        her["affection"] += data.REL_ASK_AFFECTION
+        say(dim("She doesn't say thank you. She says she'll remember."))
+        _r(red(f"-{cost}¢"))
+    else:
+        her["affection"] -= data.REL_ASK_AFFECTION
+        say(dim("She says she understands. She doesn't."))
+
+
 def quiet_night(p):
     say(dim("Nothing happens. In this city, that's a gift."))
 
@@ -148,6 +162,7 @@ EVENTS = [
     (4,  lucky_find,    lambda p: True),
     (4,  shakedown,     lambda p: p.cred >= 5),
     (4,  quiet_dream,   lambda p: p.humanity < 70),
+    (3,  partner_needs, lambda p: p.partner is not None and p.credits >= data.REL_ASK_COST),
 ]
 
 
