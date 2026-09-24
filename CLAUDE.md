@@ -35,8 +35,9 @@ Fixtures in `tests/conftest.py`:
 `test_random_play_always_reaches_an_ending` is the fuzz test: 40 seeds of random input through `game.run()`, asserting no crash and an ending. It's what caught `pause()` bypassing `_read`.
 
 Releases are tagged `vX.Y.Z` and carry a **codename that riffs on what that release
-introduced**, running **alphabetically** — v0.1.0 is "Altered Bourbon" (the bar you unwind in), so the
-next is a B name. The house style is puns that *riff on* cyberpunk pop culture — never an
+introduced**, running **alphabetically**: the next one takes the letter after the newest
+release heading in `CHANGELOG.md` (or `git tag -n1`), e.g. "Altered Bourbon" → "Blade
+Rendezvous" → a C name. The house style is puns that *riff on* cyberpunk pop culture — never an
 existing franchise's title as-is. To cut a release: rename the `## [Unreleased]` heading to
 `## [X.Y.Z] — "Codename" — YYYY-MM-DD` with a one-line summary, open a fresh empty Unreleased
 section, bump `version` in `pyproject.toml`, then `git tag -a vX.Y.Z` with the codename in the
