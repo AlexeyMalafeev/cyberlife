@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from cyberlife import data, game, save, ui
+from cyberlife import data, game, romance, save, ui
 from cyberlife.player import Player
 
 
@@ -242,6 +242,72 @@ def test_saved_run_resumes_with_same_state(player, monkeypatch):
 def test_status_shows_who_youre_seeing(player, capsys):
     game.show_status(player)
     assert "Seeing:" not in capsys.readouterr().out
-    player.partner = {"name": "Mira", "since_day": 3}
+    romance.ensure_cast(player)
+    her = player.cast[0]
+    romance.start_relationship(player, her)
     game.show_status(player)
-    assert "Seeing: Mira" in capsys.readouterr().out
+    assert f"Seeing: {her['name']}" in capsys.readouterr().out
+    her["stage"] = "serious"
+    game.show_status(player)
+    assert f"Living with: {her['name']}" in capsys.readouterr().out
+
+
+def test_new_character_gets_a_cast(answers):
+    answers("", "", "1", "")
+    random.seed(3)
+    first = game.create_character()
+    assert len(first.cast) == data.CAST_SIZE
+    assert all(c["stage"] == "stranger" and c["times_met"] == 0 for c in first.cast)
+    assert len({c["name"] for c in first.cast}) == data.CAST_SIZE
+    answers("", "", "1", "")
+    random.seed(3)
+    assert game.create_character().cast == first.cast       # same seed, same cast
+
+
+# -- relationships -------------------------------------------------------
+
+def test_day_menu_offers_your_partner_only_when_you_have_one(player, dating, answers):
+    answers("6", "1")              # "See <her>" sits right after the bar; then the first outing
+    player.energy_penalty = player.max_energy - 1
+    game.day_loop(player)
+    assert dating["last_seen_day"] == player.day
+    assert player.energy == 0
+
+
+def test_rent_is_split_once_she_moves_in(player, dating, monkeypatch):
+    monkeypatch.setattr(game.events, "night_event", lambda p: None)
+    player.day = data.RENT_EVERY
+    game.night(player)
+    assert player.credits == 1000 - player.rent
+    dating["stage"] = "serious"
+    dating["last_seen_day"] = player.day = 2 * data.RENT_EVERY
+    game.night(player)
+    assert player.credits == 1000 - player.rent - player.rent // 2
+
+
+@pytest.mark.parametrize("cause, key", [
+    ("evicted", "evicted"), ("flatlined", "flatlined"), (None, "legend"),
+])
+def test_endings_mention_who_you_leave_behind(player, dating, capsys, cause, key):
+    if cause is None:
+        player.won = "legend"
+    game.ending(player, cause)
+    assert data.REL_ENDINGS[key].format(name=dating["name"]) in capsys.readouterr().out
+
+
+def test_visa_ending_with_and_without_her(player, dating, capsys):
+    player.won = "visa"
+    game.ending(player, None)
+    assert data.REL_ENDINGS["visa"].format(name=dating["name"]) in capsys.readouterr().out
+    dating["came_along"] = True
+    game.ending(player, None)
+    assert data.REL_ENDINGS["visa_together"].format(name=dating["name"]) in capsys.readouterr().out
+
+
+def test_single_endings_mention_nobody(player, capsys):
+    romance.ensure_cast(player)
+    player.cast[0]["stage"] = "gone"        # an ex isn't who you leave behind
+    game.ending(player, "evicted")
+    out = capsys.readouterr().out
+    assert not any(text.format(name=player.cast[0]["name"]) in out
+                   for text in data.REL_ENDINGS.values())

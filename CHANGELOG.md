@@ -9,6 +9,51 @@ Every release carries a codename that riffs on what it introduced, and the coden
 
 ## [Unreleased]
 
+### Added
+
+- A cast of six women, generated with your character (the same `--seed` gives the same cast),
+  and they're the only people you meet at the Neon Lotus. When an encounter fires, one or two of
+  them are in, sitting in different spots. You approach one, or neither. Someone you've met
+  isn't a stranger any more: she's "here again", greets you the way your last night ended, and
+  (with `--llm` on) remembers it in conversation.
+- Relationships take time. Each conversation adds its score to how much she likes you, and she
+  only becomes your partner after at least three conversations, once she likes you enough and
+  the night goes well. A single perfect night now ends with a kiss, not a relationship. Walk
+  out on her, or have a night go badly enough, and she stays away from the bar for a few days.
+- "See her" on the day menu while you're together: one action point for one of her favourite
+  outings (40¢) or a night in (free). It lowers stress, gives you back some humanity, and keeps
+  her close. It's the one reliable way to get humanity back.
+- She has a life too. Go four days without seeing her, run with heat of 8 or more, or let your
+  humanity drop below 35 and she cools on you, a little every night, until she leaves. Stay close
+  for two weeks with things going well and she moves in, which halves your rent. Some nights
+  she calls because she needs 200¢; helping or refusing both stay with her.
+- Seven new sides to every woman: her stance on the corps, a guilty pleasure, what she believes
+  in, where she's from, what she dreams of, her family, and something painful she carries.
+  The lighter ones can come up the first night; where she's from, her dream and her family wait
+  for the second meeting, and what she carries for the third. She tells you things she hasn't
+  told you yet before repeating herself, so each night you learn someone new.
+- She checks whether you were listening. From the second meeting she may ask what you remember;
+  both answers sound the same, but only one gets her story right.
+- She asks about you: what you do for work, about your chrome, whether you're trouble. The
+  truth lands or doesn't depending on her (a corporate job won't impress a saboteur) and on
+  your real job, chrome and heat. A lie always goes down well, but every time you meet again
+  she might find out, and it costs more with someone who values honesty. Once you're together
+  she can find out any night.
+- Her temperament matters: small talk bores an intense woman, and a guarded one appreciates
+  it the first night. Her job hints at what she's like, but half the time she's the opposite
+  of what you'd guess (a medic who loves chrome, a corporate analyst who wants to climb).
+- Marrow sells a visa for two (25,000¢). Every ending says what became of her: whether she came
+  with you, was left asleep, or was the one who reported you missing.
+
+### Changed
+
+- Bar conversations cover whatever she's willing to talk about in a random order each night,
+  with no topic twice. Her job is no longer always the opener, and there's more to her than one
+  night covers.
+- Saves are now version 2. An older save's partner joins the cast as the woman you're seeing,
+  and the rest of the cast is generated when it loads. Stored women missing a trait get one
+  drawn fresh; a woman with a trait no longer in the game is replaced.
+
 ## [0.2.0] — "Blade Rendezvous" — 2026-09-24
 
 NPCs find their voices through a local model or DeepSeek, and the Neon Lotus gets someone worth
