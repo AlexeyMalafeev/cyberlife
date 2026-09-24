@@ -45,8 +45,8 @@ tag message and `git push --tags`.
 **User-visible changes go in `CHANGELOG.md` under `## [Unreleased]`** in the same commit,
 grouped Added / Changed / Fixed. Describe what a player or contributor notices, not the diff;
 internal refactors only earn a line when they change how you work with the code (the
-`Player.job` → `job_id` change did). Nothing is tagged yet — on the first release, rename the
-Unreleased heading to the version and date and start a new one.
+`Player.job` → `job_id` change did). Cutting a release turns that section into the
+version's own (see above).
 
 Planned work and its design notes live in `BACKLOG.md`. Check it before starting a feature — several items have ordering constraints (save/load before anything that adds `Player` fields, LLM dialog before the social systems).
 

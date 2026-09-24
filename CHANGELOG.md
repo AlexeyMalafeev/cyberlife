@@ -9,6 +9,11 @@ Every release carries a codename that riffs on what it introduced, and the coden
 
 ## [Unreleased]
 
+## [0.2.0] — "Blade Rendezvous" — 2026-09-24
+
+NPCs find their voices through a local model or DeepSeek, and the Neon Lotus gets someone worth
+talking to: a randomly generated woman, five exchanges, and a chance at something more.
+
 ### Added
 
 - The project is open source under the MIT license (see `LICENSE`).
