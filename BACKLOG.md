@@ -63,7 +63,30 @@ Decisions made along the way:
 
 ---
 
-## 3. Dating sim elements: encounters at the bar
+## 3. Dating sim elements: encounters at the bar — ✅ first pass done
+
+Shipped: `cyberlife/romance.py`. With `data.ENCOUNTER_CHANCE` (30%) per bar visit while
+single, a procedurally generated woman appears: appearance, job, temperament, two interests, a
+value, a pet peeve and an attitude to chrome, all from weighted tables in `data.py`. Accepting
+starts a five-round conversation. Each round she says a line and you pick one of three shuffled
+replies (good/bad/neutral against her hidden traits: +1/-1/0). She walks out at net -3.
+`max(0, net)` indexes `data.DATE_OUTCOMES`; a perfect 5 stores her as `Player.partner`.
+
+Decisions made along the way (these differ from the original sketch below):
+
+- **Generated people, not a fixed `data.PEOPLE` cast**, for replay value. Nobody is persisted
+  unless you end up together, so "met before" doesn't exist yet.
+- **Choices, not skill checks.** Charm doesn't enter into it; you win by reading her. Stock
+  "bad" replies are written to sound reasonable (a mismatch, not rudeness) so it isn't obvious.
+- The model gets one JSON call per round that returns her line plus the three replies, with
+  the good/bad/neutral intent of each already decided in Python. Malformed JSON falls back to
+  stock for that round and doesn't count towards the dead-backend limit. Stock lines, shuffle
+  order and reaction beats are always drawn from `random` first, as with NPC lines.
+- The number filter doesn't apply to date dialog: no price or stat rides on it.
+- The only reward is stress relief. No cred, no money, no humanity (that's item 4's to give).
+
+Still open from the sketch: eligibility gates on who you can meet (heat, chrome), more venues,
+and meeting someone again. The original notes follow.
 
 **Depends on:** item 1 (persisting who you've met). Better with item 2, fine without it.
 
@@ -94,7 +117,9 @@ restart the introduction.
 
 ## 4. Relationship development
 
-**Depends on:** item 3.
+**Depends on:** item 3. `Player.partner` already holds the full generated profile (ids into
+the `data.DATE_*` tables plus `since_day`), so her interests and peeves can drive this item's
+content. It's a single partner, not a dict of relationships yet.
 
 **Shape**
 

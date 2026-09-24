@@ -22,7 +22,7 @@ class CannedBackend:
     """No model: every line comes from the stock lines in data.NPCS."""
     name = "off"
 
-    def complete(self, messages):
+    def complete(self, messages, max_tokens=None):
         return None
 
 
@@ -38,8 +38,8 @@ class ChatCompletionsBackend:
         self.headers = headers or {}
         self._post = post or _post_json
 
-    def complete(self, messages):
-        payload = {"messages": messages, "max_tokens": MAX_TOKENS, "temperature": 0.8}
+    def complete(self, messages, max_tokens=None):
+        payload = {"messages": messages, "max_tokens": max_tokens or MAX_TOKENS, "temperature": 0.8}
         if self.model:
             payload["model"] = self.model
         reply = self._post(self.url, payload, self.headers, self.timeout)
@@ -133,7 +133,7 @@ _THINK = re.compile(r"<think>.*?(</think>|$)", re.S | re.I)
 _ANSI = re.compile(r"\x1b(\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)?|.)?")
 
 
-def sanitize(text, speaker=""):
+def sanitize(text, speaker="", limit=MAX_LINE):
     """Make model output safe and tidy to print: one plain line, capped, or '' if nothing usable."""
     if not isinstance(text, str):
         return ""
@@ -144,10 +144,10 @@ def sanitize(text, speaker=""):
     if speaker and text.lower().startswith(speaker.lower() + ":"):
         text = text[len(speaker) + 1:].lstrip()
     text = text.strip("\"'“”*` ")
-    if len(text) > MAX_LINE:
-        cut = text[:MAX_LINE]
+    if len(text) > limit:
+        cut = text[:limit]
         end = max(cut.rfind(p) for p in ".!?")
-        text = cut[:end + 1] if end >= MAX_LINE // 3 else cut[:cut.rfind(" ")].rstrip(",;:") + "…"
+        text = cut[:end + 1] if end >= limit // 3 else cut[:cut.rfind(" ")].rstrip(",;:") + "…"
     return text
 
 
@@ -162,17 +162,31 @@ def mentions_numbers(line):
     return bool(_NUMBER.search(line))
 
 
-# -- the one entry point -------------------------------------------------
-
-def respond(npc_id, player, situation, **context):
-    """Return what `npc_id` says in `situation`. Never raises for backend trouble."""
-    global _failures
-    npc = data.NPCS[npc_id]
-    sit = npc["situations"][situation]
-    canned = random.choice(sit["canned"]).format(**context)   # always drawn: keeps --seed stable
-    messages = build_messages(npc, player, sit["prompt"].format(**context), canned)
+def parse_json(text):
+    """The first {...} object in model output as a dict, or None. Tolerates chatter and fences."""
+    if not isinstance(text, str):
+        return None
+    text = _THINK.sub(" ", text)
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        return None
     try:
-        text = backend.complete(messages)
+        obj = json.loads(text[start:end + 1])
+    except ValueError:
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+# -- entry points --------------------------------------------------------
+
+def complete(messages, max_tokens=None):
+    """Ask the active backend. Returns raw text, or None for no model or any failure; never raises.
+
+    Consecutive failures past GIVE_UP_AFTER switch to stock lines for the rest of the session.
+    """
+    global _failures
+    try:
+        text = backend.complete(messages, max_tokens=max_tokens)
     except Exception as exc:
         _failures += 1
         if _failures >= GIVE_UP_AFTER and not isinstance(backend, CannedBackend):
@@ -180,10 +194,20 @@ def respond(npc_id, player, situation, **context):
             say(dim(f"(The {backend.name} dialog model isn't answering: {reason}. "
                     "Using stock lines for now.)"))
             use(CannedBackend())
-        return canned
+        return None
+    if text is not None:
+        _failures = 0
+    return text
+
+
+def respond(npc_id, player, situation, **context):
+    """Return what `npc_id` says in `situation`. Never raises for backend trouble."""
+    npc = data.NPCS[npc_id]
+    sit = npc["situations"][situation]
+    canned = random.choice(sit["canned"]).format(**context)   # always drawn: keeps --seed stable
+    text = complete(build_messages(npc, player, sit["prompt"].format(**context), canned))
     if text is None:
         return canned
-    _failures = 0
     line = sanitize(text, npc["name"])
     return canned if not line or mentions_numbers(line) else line
 

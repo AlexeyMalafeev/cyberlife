@@ -17,7 +17,7 @@ class Stub:
         self.reply = reply
         self.calls = []
 
-    def complete(self, messages):
+    def complete(self, messages, max_tokens=None):
         self.calls.append(messages)
         if isinstance(self.reply, Exception):
             raise self.reply
@@ -315,11 +315,12 @@ def test_cli_rejects_bad_env_backend(monkeypatch):
         cli.main([])
 
 
-def test_npcs_speak_in_game(player, answers, force_roll, capsys):
+def test_npcs_speak_in_game(player, answers, force_roll, capsys, monkeypatch):
     """Every call site routes through the model when one is on."""
     stub = Stub("MODEL LINE")
     llm.use(stub)
     force_roll(0.0)
+    monkeypatch.setattr(data, "ENCOUNTER_CHANCE", 0)   # bar encounters are tested in test_romance
     answers("7")                 # gig menu: never mind
     actions.gig(player)
     actions.bar(player)          # roll 0.0: the stranger's advice

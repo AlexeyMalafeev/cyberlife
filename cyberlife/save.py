@@ -84,6 +84,8 @@ def read(slot):
         player.job_id = None   # job was removed from the game since this save
     player.cyberware = [c for c in player.cyberware if any(cw["id"] == c for cw in data.CYBERWARE)]
     player.skills = {k: player.skills.get(k, 1) for k in Player(name="", handle="", background="").skills}
+    if not (isinstance(player.partner, dict) and isinstance(player.partner.get("name"), str)):
+        player.partner = None
     player.save_slot = slot
     player.clamp()
     _ = missing   # tolerated by design: older saves simply take current defaults

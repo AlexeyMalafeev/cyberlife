@@ -26,6 +26,19 @@ Every release carries a codename that riffs on what it introduced, and the coden
   Starting without a key is a usage error; a rejected key gets one notice naming the HTTP
   error, then stock lines.
 
+- Someone to meet at the Neon Lotus. About one bar visit in three, a woman catches your eye:
+  her looks, job, temperament, interests, values, pet peeve and view of chrome are drawn at
+  random, so no two are alike. Take your chance and you get five exchanges. Each time she says
+  something and you pick one of three replies in shuffled order: one suits her, one clashes,
+  one does neither. Her personality is never shown; you read it from what she says. How well
+  you do sets how the night ends, from a drink left unfinished to a kiss in the rain. A perfect
+  conversation means you start seeing her, and she stays in your save and on your status panel.
+  The only payoff is stress relief. Encounters stop while you're seeing someone.
+- With `--llm` on, the model narrates the meeting and writes her lines and your three replies
+  live, reacting to what you said last. It never decides which reply is good; the game does. If
+  the model is off or sends something unusable, stock text fills in, and the same seed plays
+  out the same either way.
+
 ### Changed
 
 - Menus and yes/no prompts respond to a single keypress — no more Enter. Menu entries are keyed
@@ -33,6 +46,13 @@ Every release carries a codename that riffs on what it introduced, and the coden
   key" replaces "press Enter" between screens. Keys typed ahead are dropped, so a held key can't
   spend your action points for you. Name and handle prompts still take a full line, and piped
   input (no terminal) still reads one line per prompt.
+- Dialog backends now take a `max_tokens` argument: `complete(messages, max_tokens=None)`.
+  Custom and stub backends need the extra parameter.
+
+### Fixed
+
+- The game and test suite run on Python 3.10 and 3.11 again. The ripperdoc menu had an f-string
+  that only Python 3.12+ could parse, although `pyproject.toml` promises 3.10+.
 
 ## [0.1.0] — "Altered Bourbon" — 2026-09-23
 

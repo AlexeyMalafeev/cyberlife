@@ -21,7 +21,7 @@ NO_COLOR=1 python3 -m cyberlife                 # plain output (also auto when s
 
 ## Testing
 
-**Every feature or behavior change ships with tests in the same commit.** New action → `tests/test_actions.py`; new event → `tests/test_events.py` (the parametrized `test_each_handler_runs_when_eligible` picks it up automatically, but add a targeted test for its choices/outcomes); loop/rent/ending changes → `tests/test_game.py`; new content tables → `tests/test_data.py` sanity checks.
+**Every feature or behavior change ships with tests in the same commit.** New action → `tests/test_actions.py`; new event → `tests/test_events.py` (the parametrized `test_each_handler_runs_when_eligible` picks it up automatically, but add a targeted test for its choices/outcomes); loop/rent/ending changes → `tests/test_game.py`; new content tables → `tests/test_data.py` sanity checks; encounter/dialog-game changes → `tests/test_romance.py`.
 
 Fixtures in `tests/conftest.py`:
 - `isolated_saves` (autouse) — points the save directory at `tmp_path`. Tests must never
@@ -75,9 +75,16 @@ Everything is a function that takes the `Player` dataclass and mutates it; there
   personas and per-situation prompts + stock lines live in `data.NPCS`. Decide outcomes
   *before* speaking and describe them in the situation — the model narrates, never decides.
   `respond()` always draws the stock line from `random` first so seeds are backend-independent,
-  and drops model lines that mention numbers. Backends implement `complete(messages) -> str |
-  None`; `ChatCompletionsBackend` is the OpenAI-style HTTP base that `MlxBackend` and
+  and drops model lines that mention numbers. Backends implement `complete(messages,
+  max_tokens=None) -> str | None`; call them through `llm.complete()`, which counts failures
+  and never raises. `ChatCompletionsBackend` is the OpenAI-style HTTP base that `MlxBackend` and
   `DeepSeekBackend` subclass (register new ones in `llm.BACKENDS`).
+- **`romance.py`** is the bar encounter (`actions.bar` calls `romance.encounter`). She's a
+  JSON-safe dict drawn from the `data.DATE_*` tables; each round Python picks the topic and
+  which reply is good/bad/neutral, and the model (one JSON call via `llm.parse_json`) only words
+  it. Stock `lines`/`good`/`bad` lists are parallel: `good[i]` answers `lines[i]`. A perfect
+  score stores her in `Player.partner`. Tests steer choices by kind with the `steer` fixture in
+  `tests/test_romance.py`.
 - **`ui.py`** owns all input. Text prompts go through `_read`, which raises `QuitGame` on `q`/EOF; `game.run` catches it. Menus, y/n and `pause()` go through `_read_key`, which reads one raw keypress on a real terminal (`RAW_KEYS`) and otherwise falls back to `_read`. Menu keys come from `MENU_KEYS` (1-9, 0, then letters without `q`). Don't call `input()` directly elsewhere or the fuzzer/quit handling breaks.
 
 ## Balance notes

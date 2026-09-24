@@ -237,3 +237,11 @@ def test_saved_run_resumes_with_same_state(player, monkeypatch):
     assert (resumed.credits, resumed.cred, resumed.day) == (4321, 9, 15)
     assert resumed.job["id"] == "courier"
     assert resumed.skill("charm") == player.skill("charm")
+
+
+def test_status_shows_who_youre_seeing(player, capsys):
+    game.show_status(player)
+    assert "Seeing:" not in capsys.readouterr().out
+    player.partner = {"name": "Mira", "since_day": 3}
+    game.show_status(player)
+    assert "Seeing: Mira" in capsys.readouterr().out

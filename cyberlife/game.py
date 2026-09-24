@@ -120,7 +120,8 @@ def show_status(player):
         f"   Cred {green(player.cred):<6} Heat {red(player.heat)}")
     sk = "  ".join(f"{s.capitalize()} {player.skill(s)}" for s in player.skills)
     job = player.job["name"] if player.job else dim("unemployed")
-    say(f" {dim(sk)}   {dim('Job:')} {job}")
+    partner = f"   {dim('Seeing:')} {neon(player.partner['name'])}" if player.partner else ""
+    say(f" {dim(sk)}   {dim('Job:')} {job}{partner}")
     hr()
 
 

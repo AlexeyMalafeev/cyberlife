@@ -1,7 +1,7 @@
 """Things the player can spend action points on during the day."""
 import random
 
-from . import data, llm
+from . import data, llm, romance
 from .ui import say, dim, green, red, yellow, cyan, neon, bold, menu, ask_yes_no, header
 
 
@@ -165,6 +165,10 @@ def bar(player):
     cred = 1 if random.random() < 0.3 else 0
     player.cred += cred
     _report(_delta("¢", -cost), _delta("stress", -12, False), _delta("cred", cred))
+    stress = romance.encounter(player)
+    if stress is not None:        # she's the night's side-event: no stranger, no brawl
+        _report(_delta("stress", stress, False))
+        return True
     roll = random.random()
     if roll < 0.15:
         say(cyan("A stranger buys you a round and talks. You listen. You learn."))
@@ -193,7 +197,8 @@ def ripperdoc(player):
         for cw in data.CYBERWARE:
             owned = player.has(cw["id"])
             bonus = ", ".join(f"+{v} {k.replace('max_', 'max ')}" for k, v in cw["bonus"].items())
-            line = f"{cw['name']:<20} {yellow(str(cw['cost']) + '¢'):<14} {dim(bonus)}  {red(f'-{cw['humanity']} humanity')}"
+            cost = red(f"-{cw['humanity']} humanity")
+            line = f"{cw['name']:<20} {yellow(str(cw['cost']) + '¢'):<14} {dim(bonus)}  {cost}"
             options.append(dim(cw["name"].ljust(20) + " (installed)") if owned else line)
         options.append(f"{'Stim-pack (+30 HP)':<20} {yellow('150¢')}")
         options.append(dim("Leave"))

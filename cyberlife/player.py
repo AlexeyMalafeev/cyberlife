@@ -25,6 +25,7 @@ class Player:
     energy_penalty: int = 0   # applied at the start of the next day
     won: str | None = None
     save_slot: int | None = None   # which slot this run autosaves to
+    partner: dict | None = None    # romance.generate() profile plus since_day, once you're together
 
     # -- derived stats -------------------------------------------------
 
