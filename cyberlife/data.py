@@ -25,14 +25,21 @@ BACKGROUNDS = {
     },
 }
 
-# Legit work: steady credits, steady stress. req = (skill, level) or None.
+# Legit work: steady credits, steady stress. req = (skill, level) or None. "desc" is how dialog
+# prompts describe the job -- the menu label's "Role, Employer" comma reads like a name to a model.
 JOBS = [
-    {"id": "noodle",    "name": "Noodle stand shift",           "pay": 70,  "stress": 9,  "req": None},
-    {"id": "courier",   "name": "Courier for QuikDrop",         "pay": 100, "stress": 10, "req": ("muscle", 2)},
-    {"id": "dataentry", "name": "Data-entry drone, Kiroshi",    "pay": 140, "stress": 12, "req": ("hacking", 3)},
-    {"id": "promoter",  "name": "Club promoter, Neon Lotus",    "pay": 160, "stress": 11, "req": ("charm", 4)},
-    {"id": "security",  "name": "Security contractor, Vexcorp", "pay": 240, "stress": 14, "req": ("muscle", 5)},
-    {"id": "netrunner", "name": "Junior netrunner, Tessier",    "pay": 320, "stress": 16, "req": ("hacking", 6)},
+    {"id": "noodle",    "name": "Noodle stand shift",           "pay": 70,  "stress": 9,  "req": None,
+     "desc": "a cook at a noodle stand"},
+    {"id": "courier",   "name": "Courier for QuikDrop",         "pay": 100, "stress": 10, "req": ("muscle", 2),
+     "desc": "a courier for QuikDrop, a delivery company"},
+    {"id": "dataentry", "name": "Data-entry drone, Kiroshi",    "pay": 140, "stress": 12, "req": ("hacking", 3),
+     "desc": "a data-entry clerk at Kiroshi, a corporation"},
+    {"id": "promoter",  "name": "Club promoter, Neon Lotus",    "pay": 160, "stress": 11, "req": ("charm", 4),
+     "desc": "a promoter for the Neon Lotus, a club and bar"},
+    {"id": "security",  "name": "Security contractor, Vexcorp", "pay": 240, "stress": 14, "req": ("muscle", 5),
+     "desc": "a security contractor for Vexcorp, a corporation"},
+    {"id": "netrunner", "name": "Junior netrunner, Tessier",    "pay": 320, "stress": 16, "req": ("hacking", 6),
+     "desc": "a junior netrunner at Tessier, a corporation"},
 ]
 
 # Gigs: risky, skill-checked. chance = base + 0.07 * skill.
@@ -497,6 +504,7 @@ DATE_CHROME = {
 
 DATE_PEEVES = {
     "bragging": {"weight": 3, "desc": "bragging",
+                "good_desc": "modest; turns the attention back to you",
                  "lines": ["So what's your story? Everyone in here has one.",
                            "You don't look like you're from around here. What do you do?"],
                  "good": ["Nothing worth bragging about. I'd rather hear yours.",
@@ -504,6 +512,7 @@ DATE_PEEVES = {
                  "bad": ["Let's just say half the fixers in this city know my name.",
                          "Stick around and you'll hear about me. Everyone does."]},
     "pushy": {"weight": 2, "desc": "pushiness",
+                "good_desc": "easygoing; respects your time and your plans",
               "lines": ["I'm not staying long. Early shift.",
                         "I'm meeting a friend later. Maybe."],
               "good": ["Then I'm glad I caught you at all.",
@@ -511,6 +520,7 @@ DATE_PEEVES = {
               "bad": ["Skip it. Stay, have another -- I'm buying.",
                       "Cancel. Your friend won't mind."]},
     "corpo": {"weight": 2, "desc": "corpo talk and hustle-speak",
+                "good_desc": "plain, heartfelt talk about what they actually want from life",
               "lines": ["What do you actually want out of this city?",
                         "If you could change one thing about your life, what would it be?"],
               "good": ["To live somewhere nobody owns me.",
@@ -518,6 +528,7 @@ DATE_PEEVES = {
               "bad": ["Leverage. Build a network, climb, cash out.",
                       "Scale up. I'm working on a few verticals."]},
     "pity": {"weight": 2, "desc": "being pitied",
+                "good_desc": "treats your hard past as strength, not as something to feel sorry about",
              "lines": ["I grew up in the Stacks. Worst block in the Sprawl.",
                        "I've been on my own since I was fourteen."],
              "good": ["So did half the people worth knowing.",
@@ -525,6 +536,7 @@ DATE_PEEVES = {
              "bad": ["That must have been awful. You poor thing.",
                      "I'm so sorry. Nobody should have to go through that."]},
     "cynicism": {"weight": 2, "desc": "cynicism",
+                "good_desc": "hopeful; notices the good things in the city",
                  "lines": ["Sometimes I think the city's getting better. Slowly.",
                            "I saw a kid give her umbrella to a stranger today. Made my week."],
                  "good": ["Yeah. You see it in small things, if you look.",
@@ -532,6 +544,7 @@ DATE_PEEVES = {
                  "bad": ["Nothing changes here. Nothing ever will.",
                          "Give it a week. The city beats that out of everyone."]},
     "prying": {"weight": 2, "desc": "nosy questions",
+                "good_desc": "gives you room; answers without digging into your private life",
                "lines": ["I don't usually talk to strangers.",
                          "You ask a lot of questions, don't you?"],
                "good": ["Then we'll keep it easy. No questions you don't want.",
@@ -566,27 +579,35 @@ DATE_REACTIONS = {
                 "She sips her drink.", "The music fills the pause."],
 }
 
-# One outcome per final score, 0 to DATE_ROUNDS. "prompt" tells a dialog model how she says
-# goodbye; "canned" is her line without one. Stress relief is the only payoff (see CLAUDE.md
-# balance notes); the top tier also makes her your partner.
+# How the night ends, worst to best. The net score (+1 per good reply, -1 per bad, so
+# -DATE_ROUNDS..DATE_ROUNDS) picks the best tier whose "min_net" it reaches; walking out always
+# lands in the first. "prompt" tells a dialog model how she says goodbye; "canned" is her line
+# without one. Stress relief is the only payoff (see CLAUDE.md balance notes); the top tier
+# also makes her your partner.
 DATE_OUTCOMES = [
     {"prompt": "You've had enough of this person. End it coldly and leave.",
      "canned": ["I'm going to go. Don't follow me.", "Wow. Okay. Goodnight."],
+     "min_net": -DATE_ROUNDS,
      "narration": "She slides off the stool and leaves her drink unfinished.", "stress": 5},
     {"prompt": "Make a polite excuse and leave. You're not interested.",
      "canned": ["Well. Nice meeting you. I should go.", "Early shift. Take care."],
+     "min_net": -1,
      "narration": "She finishes her drink a little too quickly.", "stress": 0},
     {"prompt": "Say a friendly goodbye. It was nice, but nothing more.",
      "canned": ["This was nice. Take care of yourself out there.", "Thanks for the company."],
+     "min_net": 1,
      "narration": "You talk until the ice melts. Pleasant, but nothing sparks.", "stress": -3},
     {"prompt": "You enjoyed this. Hint you might like to run into them here again.",
      "canned": ["If I'm here again, you can buy the next one.", "You're not the worst company in here."],
+     "min_net": 2,
      "narration": "She laughs at your jokes and touches your arm once on the way out.", "stress": -5},
     {"prompt": "You really like them, but you're not ready for more yet. Say goodnight warmly.",
      "canned": ["I like you. That's what worries me. Goodnight.", "Ask me again some other night."],
+     "min_net": 4,
      "narration": "Outside, under the dripping neon, she kisses you. Then she's gone into the rain.",
      "stress": -8},
     {"prompt": "You want to keep seeing them, starting tonight. Ask them to walk you home.",
      "canned": ["Walk me home? And then tomorrow, too.", "I'm not letting you disappear. Walk with me."],
+     "min_net": 5,
      "narration": "She walks out with you, and doesn't let go of your hand.", "stress": -10},
 ]

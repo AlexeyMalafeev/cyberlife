@@ -14,7 +14,8 @@ Every release carries a codename that riffs on what it introduced, and the coden
 - The project is open source under the MIT license (see `LICENSE`).
 - NPCs talk. Marrow, Doc Saito, Juno the bartender, a stranger at the bar and the Kestrels
   each have a persona and speak a line when you deal with them. By default the lines come from
-  a stock table, so the game stays offline and `--seed` runs are unchanged.
+  a stock table, so the game stays offline and `--seed` runs are unchanged. With a model on,
+  they address you by your handle; your employer's name no longer gets mistaken for yours.
 - `--llm mlx` voices those lines with a local model through `mlx_lm.server` on Apple Silicon
   (`--llm-url`, `--llm-model`, `--llm-timeout`, or the matching `CYBERLIFE_LLM*` environment
   variables). The model only narrates: every outcome is rolled before it speaks, a line that
@@ -30,9 +31,11 @@ Every release carries a codename that riffs on what it introduced, and the coden
   her looks, job, temperament, interests, values, pet peeve and view of chrome are drawn at
   random, so no two are alike. Take your chance and you get five exchanges. Each time she says
   something and you pick one of three replies in shuffled order: one suits her, one clashes,
-  one does neither. Her personality is never shown; you read it from what she says. How well
-  you do sets how the night ends, from a drink left unfinished to a kiss in the rain. A perfect
-  conversation means you start seeing her, and she stays in your save and on your status panel.
+  one does neither. Her personality is never shown; you read it from what she says. You trade
+  handles, not real names. Good replies minus bad ones set how the night ends, from a drink left
+  unfinished to a kiss in the rain, so a rough start can still be saved; three misses before
+  the last round and she walks out. A perfect conversation means you start seeing her, and she
+  stays in your save and on your status panel.
   The only payoff is stress relief. Encounters stop while you're seeing someone.
 - With `--llm` on, the model narrates the meeting and writes her lines and your three replies
   live, reacting to what you said last. It never decides which reply is good; the game does. If
@@ -47,7 +50,8 @@ Every release carries a codename that riffs on what it introduced, and the coden
   spend your action points for you. Name and handle prompts still take a full line, and piped
   input (no terminal) still reads one line per prompt.
 - Dialog backends now take a `max_tokens` argument: `complete(messages, max_tokens=None)`.
-  Custom and stub backends need the extra parameter.
+  Custom and stub backends need the extra parameter. Jobs in `data.JOBS` carry a `desc`, which
+  is how dialog prompts describe the job; the menu keeps using `name`.
 
 ### Fixed
 

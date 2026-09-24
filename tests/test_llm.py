@@ -358,3 +358,17 @@ def test_lines_that_mention_numbers_fall_back(player, reply, kept):
     llm.use(Stub(reply))
     line = llm.respond("kestrels", player, "shakedown", demand=200)
     assert (line == reply) is kept
+
+
+def test_prompts_label_the_player_so_job_names_arent_read_as_names(player):
+    """Playtest: Juno called a Tessier netrunner "Tessier"."""
+    player.job_id = "netrunner"
+    system = llm.build_messages(data.NPCS["juno"], player, "S", "E")[0]["content"]
+    assert f"Handle: {player.handle}." in system
+    assert "Job: a junior netrunner at Tessier, a corporation." in system
+    assert "Junior netrunner, Tessier" not in system
+    assert f"it's {player.handle}; nothing else" in system
+
+
+def test_unemployed_players_are_described_as_such(player):
+    assert "Job: unemployed." in llm.player_summary(player)

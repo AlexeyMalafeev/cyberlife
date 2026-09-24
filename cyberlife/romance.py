@@ -67,14 +67,16 @@ def _persona(her, player):
     interests = " and ".join(data.DATE_INTERESTS[i]["label"] for i in her["interests"])
     return (
         f"You are {her['name']}, {her['age']}, {data.DATE_OCCUPATIONS[her['occupation']]['desc']} "
-        f"in {data.CITY}, 2087, a cyberpunk megacity. You're at the bar of the Neon Lotus, talking "
-        f"to a stranger who sat down next to you.\n"
+        f"in {data.CITY}, 2087, a cyberpunk megacity. You're at the bar of the Neon Lotus. A "
+        f"stranger just took the stool next to yours and you swapped names: they go by "
+        f"{player.handle}. Any reply that gives the stranger's name uses {player.handle}.\n"
         f"Your look: {her['build']}, {her['hair']}, {her['eyes']}, {her['style']}, {her['feature']}.\n"
         f"Your manner: {data.DATE_TEMPERAMENTS[her['temperament']]['desc']}. "
         f"You love {interests}. What matters most to you: {data.DATE_VALUES[her['value']]['desc']}. "
         f"You can't stand {data.DATE_PEEVES[her['peeve']]['desc']}. "
         f"On cyberware: {data.DATE_CHROME[her['chrome']]['desc']}.\n"
-        f"The stranger is a {player.background}; chrome: {', '.join(chrome) or 'none visible'}.\n"
+        f"The stranger: background {player.background}; job: {llm.job_desc(player)}; "
+        f"chrome: {', '.join(chrome) or 'none visible'}.\n"
         "Speak casually, like a real person in a bar. Short sentences. No stage directions, "
         "no quotation marks, no name prefixes."
     )
@@ -99,16 +101,16 @@ def _topic_brief(kind, key):
         return (f"cyberware ({entry['desc']})",
                 "matches how you feel about chrome",
                 "takes the opposite view of chrome")
-    return ("an open question about the stranger",
-            f"is the opposite of {entry['desc']}",
-            f"is a perfect example of {entry['desc']}, the thing you can't stand")
+    return (f"a question or remark that shows whether the stranger is given to {entry['desc']}",
+            entry["good_desc"],
+            f"is a clear case of {entry['desc']}, the thing you can't stand")
 
 
 def _transcript(history):
     lines = []
     for hers, yours in history:
         lines += [f"You: {hers}", f"Stranger: {yours}"]
-    return "\n".join(lines) or "(nothing yet -- the stranger just sat down)"
+    return "\n".join(lines) or "(nothing yet -- you've only swapped names)"
 
 
 def round_messages(her, player, topic, history, last):
@@ -147,9 +149,9 @@ def scene_messages(her, hint, example):
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
-def closing_messages(her, player, history, outcome, example):
+def closing_messages(her, player, history, ending, example):
     user = (f"Conversation so far:\n{_transcript(history)}\n\n"
-            f"The conversation is ending. {outcome['prompt']} One line, under 25 words, spoken "
+            f"The conversation is ending. {ending['prompt']} One line, under 25 words, spoken "
             f"dialog only.\nFor tone only, don't reuse its wording: {example}")
     return [{"role": "system", "content": _persona(her, player)}, {"role": "user", "content": user}]
 
@@ -189,9 +191,9 @@ def voice_round(her, player, topic, history, last):
     return voiced
 
 
-def closing(her, player, history, outcome):
-    canned = random.choice(outcome["canned"])
-    text = llm.complete(closing_messages(her, player, history, outcome, canned))
+def closing(her, player, history, ending):
+    canned = random.choice(ending["canned"])
+    text = llm.complete(closing_messages(her, player, history, ending, canned))
     return llm.sanitize(text, her["name"]) or canned
 
 
@@ -201,8 +203,18 @@ def _her_line(her, line):
     say(f"{cyan(her['name'])}: {dim(line)}")
 
 
+def outcome(net, walked_out):
+    """The DATE_OUTCOMES entry for a finished conversation."""
+    if walked_out:
+        return data.DATE_OUTCOMES[0]
+    return [o for o in data.DATE_OUTCOMES if net >= o["min_net"]][-1]
+
+
 def chat(player, her):
-    """Play the conversation. Returns (score from 0 to DATE_ROUNDS, [(her line, your reply)])."""
+    """Play the conversation. Returns (net score, walked out?, [(her line, your reply)]).
+
+    The net score is +1 per good reply and -1 per bad one, -DATE_ROUNDS..DATE_ROUNDS.
+    """
     net, history, last = 0, [], None
     for topic in plan_topics(her):
         stock = stock_round(topic)                  # drawn every round: keeps --seed stable
@@ -216,9 +228,9 @@ def chat(player, her):
         say(dim(reaction[kind]))
         history.append((beat["line"], beat[kind]))
         last = kind
-        if net <= data.DATE_WALKOUT:
-            break
-    return max(0, net), history
+        if net <= data.DATE_WALKOUT and len(history) < data.DATE_ROUNDS:
+            return net, True, history
+    return net, False, history
 
 
 def encounter(player):
@@ -231,14 +243,15 @@ def encounter(player):
     if not ask_yes_no("Try your luck?"):
         say(dim("You let the moment pass. Probably for the best. Probably."))
         return 0
-    say(dim(f"You slide onto the stool next to her. She tells you her name is {her['name']}."))
-    score, history = chat(player, her)
-    outcome = data.DATE_OUTCOMES[score]
+    say(dim(f"You slide onto the stool next to her and trade names over the noise. "
+            f"She's {her['name']}."))
+    net, walked_out, history = chat(player, her)
+    ending = outcome(net, walked_out)
     say()
-    _her_line(her, closing(her, player, history, outcome))
-    say(dim(outcome["narration"]))
-    player.stress += outcome["stress"]
-    if score == data.DATE_ROUNDS:
+    _her_line(her, closing(her, player, history, ending))
+    say(dim(ending["narration"]))
+    player.stress += ending["stress"]
+    if ending is data.DATE_OUTCOMES[-1]:
         player.partner = {**her, "since_day": player.day}
         say(green(f"You're seeing {her['name']} now."))
-    return outcome["stress"]
+    return ending["stress"]

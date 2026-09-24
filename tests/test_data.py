@@ -66,12 +66,17 @@ def test_every_topic_has_paired_stock_lines():
             assert entry["lines"], key
             assert len(entry["lines"]) == len(entry["good"]) == len(entry["bad"]), key
             assert entry["desc" if "desc" in entry else "label"], key
+    for key, entry in data.DATE_PEEVES.items():
+        assert entry["good_desc"], key
 
 
 def test_encounter_sizes_and_outcomes():
     assert 0 < data.ENCOUNTER_CHANCE < 1
     assert len(data.DATE_INTERESTS) >= 2         # she always has two different ones
-    assert len(data.DATE_OUTCOMES) == data.DATE_ROUNDS + 1
+    floors = [o["min_net"] for o in data.DATE_OUTCOMES]
+    assert floors == sorted(set(floors))                  # one tier per threshold, worst first
+    assert floors[0] == -data.DATE_ROUNDS                 # every score lands somewhere
+    assert floors[-1] == data.DATE_ROUNDS                 # only a perfect date starts something
     # Enough topics for a full conversation even when she doesn't care about chrome.
     assert 1 + 2 + 1 + 1 >= data.DATE_ROUNDS
     assert -data.DATE_ROUNDS < data.DATE_WALKOUT < 0
@@ -88,3 +93,8 @@ def test_stock_scenes_fill_from_looks_and_hint():
     for template in data.DATE_SCENES:
         text = template.format(hint="HINT", **looks)
         assert "HINT" in text and "{" not in text
+
+
+def test_jobs_have_a_prompt_description():
+    for job in data.JOBS:
+        assert job["desc"] and job["desc"] != job["name"], job["id"]

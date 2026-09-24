@@ -121,26 +121,34 @@ def test_stock_scene_hides_her_personality():
 
 # -- the conversation ----------------------------------------------------
 
-@pytest.mark.parametrize("kinds, score", [
+@pytest.mark.parametrize("kinds, net", [
     (["good"] * 5, 5),
     (["good"] * 4 + ["neutral"], 4),
     (["good", "good", "neutral", "bad", "good"], 2),
     (["neutral"] * 5, 0),
     (["bad", "good", "good", "good", "good"], 3),
+    (["bad", "bad", "good", "good", "neutral"], 0),    # the playtest date that recovered
+    (["bad", "bad", "neutral", "neutral", "neutral"], -2),
 ])
-def test_score_counts_good_minus_bad(player, steer, kinds, score):
+def test_net_score_is_good_minus_bad(player, steer, kinds, net):
     steer(*kinds, accept=None)
     her = romance.generate()
-    got, history = romance.chat(player, her)
-    assert got == score and len(history) == 5
+    got, walked_out, history = romance.chat(player, her)
+    assert (got, walked_out, len(history)) == (net, False, 5)
 
 
 def test_she_walks_out_after_too_many_misses(player, steer):
     steer("bad", "bad", "bad", "good", "good", accept=None)
     her = romance.generate()
-    score, history = romance.chat(player, her)
-    assert score == 0 and len(history) == 3
+    net, walked_out, history = romance.chat(player, her)
+    assert (net, walked_out, len(history)) == (-3, True, 3)
     assert len(steer.keys) == 3      # the last two rounds never came up
+
+
+def test_three_misses_in_the_last_round_is_not_a_walkout(player, steer):
+    steer("neutral", "neutral", "bad", "bad", "bad", accept=None)
+    net, walked_out, history = romance.chat(player, romance.generate())
+    assert (net, walked_out, len(history)) == (-3, False, 5)
 
 
 def test_the_good_reply_moves_around(player, steer):
@@ -151,16 +159,35 @@ def test_the_good_reply_moves_around(player, steer):
     assert set(steer.keys) == {"1", "2", "3"}
 
 
-@pytest.mark.parametrize("score", range(data.DATE_ROUNDS + 1))
-def test_every_score_has_an_ending(player, steer, always, score, capsys):
-    steer(*(["good"] * score + ["neutral"] * (data.DATE_ROUNDS - score)))
+@pytest.mark.parametrize("net, walked_out, tier", [
+    (-5, False, 0), (-2, False, 0), (-3, True, 0),
+    (-1, False, 1), (0, False, 1),
+    (1, False, 2),
+    (2, False, 3), (3, False, 3),
+    (4, False, 4),
+    (5, False, 5),
+])
+def test_net_score_picks_the_ending(net, walked_out, tier):
+    assert romance.outcome(net, walked_out) is data.DATE_OUTCOMES[tier]
+
+
+@pytest.mark.parametrize("kinds, tier", [
+    (["bad", "bad", "bad"], 0),
+    (["bad", "bad", "good", "good", "neutral"], 1),
+    (["good", "neutral", "neutral", "neutral", "neutral"], 2),
+    (["good", "good", "good", "neutral", "neutral"], 3),
+    (["good", "good", "good", "good", "neutral"], 4),
+    (["good"] * 5, 5),
+])
+def test_every_ending_plays_out(player, steer, always, kinds, tier, capsys):
+    steer(*kinds)
     player.stress = 50
     change = romance.encounter(player)
-    outcome = data.DATE_OUTCOMES[score]
-    assert change == outcome["stress"]
-    assert player.stress == 50 + outcome["stress"]
-    assert outcome["narration"] in capsys.readouterr().out
-    assert (player.partner is not None) == (score == data.DATE_ROUNDS)
+    ending = data.DATE_OUTCOMES[tier]
+    assert change == ending["stress"]
+    assert player.stress == 50 + ending["stress"]
+    assert ending["narration"] in capsys.readouterr().out
+    assert (player.partner is not None) == (tier == len(data.DATE_OUTCOMES) - 1)
 
 
 def test_perfect_date_makes_her_your_partner(player, steer, always):
@@ -225,6 +252,7 @@ def test_model_gets_the_trait_rules_and_the_transcript(player, steer, always):
     first_round, second_round, third_round = stub.calls[1:4]
     system = first_round[0]["content"]
     assert "You can't stand" in system and "Your manner" in system
+    assert f"they go by {player.handle}" in system and player.name not in system
     assert "Stranger: Good reply 0." in second_round[1]["content"]
     assert "won you over" in second_round[1]["content"]
     assert "Stranger: Bad reply 1." in third_round[1]["content"]
@@ -297,3 +325,24 @@ def test_bad_or_missing_partner_loads_as_single(player, stored):
     player.partner = stored
     save.write(player, 1)
     assert save.read(1).partner is None
+
+
+def test_she_knows_your_handle_and_your_job(player, steer, always):
+    """Playtest: without the handle the model invented a name ("Name's Kestrel")."""
+    stub = Stub("Scene.", *[round_json(n) for n in range(5)], "Bye.")
+    llm.use(stub)
+    player.job_id = "netrunner"
+    steer(*["good"] * 5)
+    romance.encounter(player)
+    for messages in stub.calls[1:]:
+        system = messages[0]["content"]
+        assert f"uses {player.handle}" in system
+        assert "junior netrunner at Tessier, a corporation" in system
+        assert "Junior netrunner, Tessier" not in system
+
+
+def test_peeve_rounds_brief_the_good_reply(player):
+    random.seed(1)
+    her = romance.generate()
+    messages = romance.round_messages(her, player, ("peeve", "prying"), [], None)
+    assert data.DATE_PEEVES["prying"]["good_desc"] in messages[1]["content"]

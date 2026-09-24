@@ -104,11 +104,15 @@ def use(new_backend):
 
 # -- prompts -------------------------------------------------------------
 
+def job_desc(player):
+    return player.job["desc"] if player.job else "unemployed"
+
+
 def player_summary(player):
+    """Labelled fields: run together, a model takes "Junior netrunner, Tessier" for a name."""
     chrome = [cw["name"] for cw in data.CYBERWARE if player.has(cw["id"])]
-    job = player.job["name"] if player.job else "unemployed"
-    return (f"{player.handle}, a {player.background} ({job}). Day {player.day}. "
-            f"Street cred {player.cred}/{data.LEGEND_CRED}, heat {player.heat}, "
+    return (f"Handle: {player.handle}. Background: {player.background}. Job: {job_desc(player)}. "
+            f"Day {player.day}. Street cred {player.cred}/{data.LEGEND_CRED}, heat {player.heat}, "
             f"humanity {player.humanity}/100, credits {player.credits}. "
             f"Chrome: {', '.join(chrome) or 'none'}.")
 
@@ -117,7 +121,8 @@ def build_messages(npc, player, situation, example):
     system = (
         f"You are {npc['name']}, {npc['role']} in {data.CITY}, 2087, a cyberpunk megacity. "
         f"Manner: {npc['disposition']}. About you: {' '.join(npc['facts'])}\n"
-        f"You're talking to {player_summary(player)}\n"
+        f"You're talking to the player. {player_summary(player)}\n"
+        f"If you use a name for them, it's {player.handle}; nothing else in that summary is a name.\n"
         "Reply with ONE line of spoken dialog, under 30 words. No narration, no stage "
         "directions, no quotation marks, no name prefix. Don't offer money, items or deals "
         "beyond what the situation says. Never mention amounts, prices or other numbers; the "

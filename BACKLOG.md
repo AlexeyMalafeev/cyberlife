@@ -69,8 +69,9 @@ Shipped: `cyberlife/romance.py`. With `data.ENCOUNTER_CHANCE` (30%) per bar visi
 single, a procedurally generated woman appears: appearance, job, temperament, two interests, a
 value, a pet peeve and an attitude to chrome, all from weighted tables in `data.py`. Accepting
 starts a five-round conversation. Each round she says a line and you pick one of three shuffled
-replies (good/bad/neutral against her hidden traits: +1/-1/0). She walks out at net -3.
-`max(0, net)` indexes `data.DATE_OUTCOMES`; a perfect 5 stores her as `Player.partner`.
+replies (good/bad/neutral against her hidden traits: +1/-1/0). She walks out at net -3 before
+the last round. The net score (-5..5) picks the best `data.DATE_OUTCOMES` tier whose `min_net`
+it reaches; a perfect 5 stores her as `Player.partner`.
 
 Decisions made along the way (these differ from the original sketch below):
 
@@ -84,6 +85,12 @@ Decisions made along the way (these differ from the original sketch below):
   order and reaction beats are always drawn from `random` first, as with NPC lines.
 - The number filter doesn't apply to date dialog: no price or stat rides on it.
 - The only reward is stress relief. No cred, no money, no humanity (that's item 4's to give).
+- **Tuned after the first DeepSeek playtest:** outcomes follow the *net* score, not
+  `max(0, net)`. A date that went bad, bad, good, good, neutral nets 0, which the clamp had sent
+  to the cold walkout. She learns your handle (the model invented a name for you when it didn't
+  have one), your real name is left for a partner to learn later, and prompts describe your job
+  as prose (`data.JOBS[...]["desc"]`) because "Junior netrunner, Tessier" got you called
+  "Tessier".
 
 Still open from the sketch: eligibility gates on who you can meet (heat, chrome), more venues,
 and meeting someone again. The original notes follow.
@@ -117,7 +124,7 @@ restart the introduction.
 
 ## 4. Relationship development
 
-**Depends on:** item 3. `Player.partner` already holds the full generated profile (ids into
+**Depends on:** item 3, and best built on item 7's persistent cast. `Player.partner` already holds the full generated profile (ids into
 the `data.DATE_*` tables plus `since_day`), so her interests and peeves can drive this item's
 content. It's a single partner, not a dict of relationships yet.
 
@@ -212,3 +219,38 @@ game forgiving by default; some players want the original stakes back, and later
 **Tests:** each difficulty's modifiers actually apply; permadeath blocks manual save and
 clears the slot on death; difficulty round-trips through save/load; a save written before
 difficulty existed loads at the default.
+
+---
+
+## 7. A persistent cast: the same people, met more than once
+
+**Depends on:** item 3 (shipped first pass). Do this before item 4, which should build on it.
+
+**Why:** today every encounter is a stranger you never see again, and one perfect conversation
+is enough to start a relationship. A small recurring cast gives the bar some memory and makes
+a relationship something you work toward over several nights.
+
+**Shape**
+
+- At character creation, generate a roster of 5-7 women with `romance.generate()` (seeded, so
+  `--seed` reproduces the cast) and store it on `Player`, e.g. `Player.cast: list[dict]`, each
+  entry holding her profile plus relationship state: `affection`, `times_met`, `last_met_day`,
+  and whether she's `met` at all.
+- The bar encounter picks from the roster instead of generating a stranger: on an encounter
+  roll, one or two of them are there (open question: one or two *at once*, or one per visit
+  drawn from any of them?). Someone you haven't met gets the opening scene and introduction;
+  someone you have gets a "she's here again" beat and no re-introduction, with the model shown
+  a short summary of how your last meeting went.
+- **One meeting is never enough.** Each conversation adds its net score to `affection`; she
+  becomes your partner only once `affection` passes a threshold *and* `times_met` is at least
+  some minimum (3?). A single perfect night tops out at the kiss tier. A walkout or a very bad
+  night could make her avoid you for a while.
+- Replaces `Player.partner` with a stage on a roster entry. That changes what a saved field
+  means, so bump `SAVE_VERSION` and migrate an existing `partner` into the cast.
+- Relationships are persisted as part of the roster, so they survive save/load with it.
+
+**Tests:** same seed, same cast; an encounter only ever picks cast members; a met character
+isn't re-introduced; affection accumulates across meetings; no partner before the minimum
+number of meetings even with perfect scores; the cast round-trips through save/load; an old
+save with `partner` migrates into the cast.
+
