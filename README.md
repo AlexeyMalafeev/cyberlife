@@ -8,7 +8,7 @@
 python3 -m cyberlife
 ```
 
-Requires Python 3.10+. No dependencies. Add `--seed N` for a repeatable run, `q` at any prompt to quit. Set `NO_COLOR=1` to disable ANSI colors.
+Requires Python 3.10+. No dependencies. Add `--seed N` for a repeatable run, `--debug` for a menu that edits game state and stages bar encounters, `q` at any prompt to quit. Set `NO_COLOR=1` to disable ANSI colors.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's been built and [BACKLOG.md](BACKLOG.md) for what's planned.
 

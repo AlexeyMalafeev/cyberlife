@@ -1,7 +1,7 @@
 import argparse
 import os
 
-from . import llm
+from . import debug, llm
 from .game import run
 
 
@@ -23,12 +23,16 @@ def main(argv=None):
     parser.add_argument("--llm-timeout", type=float,
                         help="seconds to wait for a line before using a stock one "
                              "(default: 5 for mlx, 10 for deepseek)")
+    parser.add_argument("--debug", action="store_true",
+                        help="add a Debug entry to the day menu: edit stats, stage bar encounters "
+                             "with a chosen cast member, show their character sheets")
     args = parser.parse_args(argv)
     try:
         backend = llm.make_backend(args.llm, url=args.llm_url, model=args.llm_model, timeout=args.llm_timeout)
     except ValueError as exc:   # missing API key, or a bad $CYBERLIFE_LLM (skips argparse's check)
         parser.error(str(exc))
     llm.use(backend)
+    debug.enable(args.debug)
     run(seed=args.seed, save_dir=args.save_dir)
 
 

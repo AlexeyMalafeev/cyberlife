@@ -8,13 +8,14 @@ on, so a --seed plays out the same either way.
 import random
 
 from . import data, llm
-from .ui import say, dim, cyan, green, red, neon, menu, ask_yes_no
+from .ui import say, dim, cyan, green, red, neon, yellow, menu, ask_yes_no
 
 KINDS = ("good", "bad", "neutral")               # replies to her talking about herself
 ANSWERS = ("truth", "lie", "dodge")              # replies to her asking about you
 FEEL = {1: "good", -1: "bad", 0: "neutral"}      # how a reply's score reads to her
 SCENE_LIMIT = 420      # characters of model narration we'll print
 REPLY_LIMIT = 160
+SHOW_SHEETS = False    # print each woman's sheet() before her scene; the debug menu toggles it
 
 # Topic kind -> (her field, table). "interest" is a list of two ids; everything else is one id.
 TRAITS = {
@@ -530,9 +531,17 @@ def encounter(player):
     here = present(player)
     if not here:
         return None
+    return meet(player, here)
+
+
+def meet(player, here):
+    """Seat `here` (one or two cast members) at the bar and play the night out. Returns the
+    stress change to report. The debug menu calls this directly to skip the dice."""
     spots = random.sample(data.BAR_SPOTS, len(here))
     for her, spot in zip(here, spots):
         say()
+        if SHOW_SHEETS:
+            sheet(her)
         say(neon(scene(her, spot)))
     her = _choose(here, spots)
     if her is None:
@@ -545,7 +554,7 @@ def encounter(player):
         say(dim(f"You slide onto the stool next to her and trade names over the noise. "
                 f"She's {her['name']}."))
     net, walked_out, history = chat(player, her)
-    ready = (her["times_met"] + 1 >= data.DATE_MIN_MEETINGS
+    ready = (player.partner is None and her["times_met"] + 1 >= data.DATE_MIN_MEETINGS
              and her["affection"] + net >= data.DATE_PARTNER_AFFECTION)
     ending = outcome(net, walked_out, ready)
     say()
@@ -560,6 +569,32 @@ def encounter(player):
         start_relationship(player, her)
         say(green(f"You're seeing {her['name']} now."))
     return ending["stress"]
+
+
+def sheet(her):
+    """Print her hidden profile and where she stands with you. Debug only: in play, reading
+    her is the whole game."""
+    rows = [
+        ("Look", f"{her['build']}, {her['hair']}, {her['eyes']}, {her['style']}, {her['feature']}"),
+        ("Manner", f"{her['temperament']}: {data.DATE_TEMPERAMENTS[her['temperament']]['desc']}"),
+    ]
+    for kind, (field, table) in TRAITS.items():     # every trait, so new ones show up here too
+        ids = her[field] if isinstance(her[field], list) else [her[field]]
+        text = " and ".join(table[i].get("desc") or table[i]["label"] for i in ids)
+        rows.append((kind.capitalize(), f"{', '.join(ids)}: {text}"))
+    status = f"{her['stage']}, met {her['times_met']}x, affection {her['affection']}"
+    if her["last_outcome"] is not None:
+        status += f"; last time {data.DATE_OUTCOMES[her['last_outcome']]['memory']}"
+    if her["avoid_until"]:
+        status += f"; avoiding you until day {her['avoid_until']}"
+    rows.append(("Status", status))
+    if her["discussed"]:
+        rows.append(("Told you", ", ".join(f"{k} {i}" for k, i in her["discussed"])))
+    if her["lies"]:
+        rows.append(("Your lies", ", ".join(map(str, her["lies"]))))
+    say(yellow(f"-- {her['name']}, {her['age']} " + "-" * 30))
+    for label, text in rows:
+        say(f"   {dim(label.ljust(12))}{text}")
 
 
 # -- together ------------------------------------------------------------

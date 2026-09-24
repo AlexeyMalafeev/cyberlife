@@ -904,3 +904,73 @@ def test_peeve_rounds_brief_the_good_reply(player):
     her = romance.new_member()
     messages = romance.round_messages(her, player, ("peeve", "prying"), [], None)
     assert data.DATE_PEEVES["prying"]["good_desc"] in messages[1]["content"]
+
+
+# -- debug: staged encounters and character sheets ------------------------
+
+def test_sheet_shows_her_hidden_traits_and_standing(player, her, capsys):
+    her.update(stage="met", times_met=2, affection=4, last_outcome=1)
+    romance.sheet(her)
+    out = capsys.readouterr().out
+    for text in (her["name"], "met 2x, affection 4", data.DATE_OUTCOMES[1]["memory"]):
+        assert text in out
+    for kind, (field, table) in romance.TRAITS.items():
+        for i in her[field] if isinstance(her[field], list) else [her[field]]:
+            assert (table[i].get("desc") or table[i]["label"]) in out, kind
+
+
+def test_debug_encounter_seats_the_one_you_pick_without_a_roll(player, steer, monkeypatch, capsys):
+    from cyberlife import debug
+    monkeypatch.setattr(data, "ENCOUNTER_CHANCE", 0.0)
+    romance.ensure_cast(player)
+    chosen = player.cast[2]
+    steer(*["good"] * data.DATE_ROUNDS).insert(0, "3")      # third in the cast menu
+    debug.test_encounter(player)
+    assert chosen["times_met"] == 1 and chosen["affection"] == data.DATE_ROUNDS
+    assert all(c["times_met"] == 0 for c in player.cast if c is not chosen)
+    assert chosen["name"] in capsys.readouterr().out
+
+
+def test_debug_encounter_ignores_her_staying_away(player, steer):
+    from cyberlife import debug
+    romance.ensure_cast(player)
+    player.cast[0].update(stage="met", times_met=1, last_outcome=0, avoid_until=player.day + 5)
+    steer("neutral", "neutral", "neutral", "neutral", "neutral").insert(0, "1")
+    debug.test_encounter(player)
+    assert player.cast[0]["times_met"] == 2
+
+
+def test_debug_encounter_refuses_a_partner_or_an_ex(player, dating, answers, capsys):
+    from cyberlife import debug
+    answers("1")
+    debug.test_encounter(player)
+    assert "set her stage" in capsys.readouterr().out
+    assert dating["stage"] == "dating"
+
+
+@pytest.mark.parametrize("shown", [True, False])
+def test_character_sheet_before_the_scene_is_optional(player, steer, her, capsys, shown):
+    romance.SHOW_SHEETS = shown     # reset by the autouse debug_off fixture
+    steer(accept=False)
+    romance.encounter(player)
+    out = capsys.readouterr().out
+    assert (data.DATE_PEEVES[her["peeve"]]["desc"] in out) == shown
+
+
+def test_no_second_partner_from_a_staged_night(player, dating, steer):
+    other = player.cast[1]
+    other.update(stage="met", times_met=data.DATE_MIN_MEETINGS,
+                 affection=data.DATE_PARTNER_AFFECTION, last_outcome=4)
+    steer(*["good"] * data.DATE_ROUNDS)
+    romance.meet(player, [other])
+    assert other["stage"] == "met" and player.partner is dating
+
+
+def test_debug_met_count_on_a_stranger_still_gets_a_return_scene(player, steer, answers):
+    from cyberlife import debug
+    romance.ensure_cast(player)
+    answers("1", str(debug.CAST_FIELDS.index("times_met") + 1), "2")
+    debug.edit_member(player)
+    steer(accept=False).insert(0, "1")
+    debug.test_encounter(player)        # scene() reads last_outcome for anyone met before
+    assert player.cast[0]["times_met"] == 2
