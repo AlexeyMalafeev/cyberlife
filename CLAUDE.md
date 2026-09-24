@@ -43,6 +43,10 @@ existing franchise's title as-is. To cut a release: rename the `## [Unreleased]`
 section, bump `version` in `pyproject.toml`, then `git tag -a vX.Y.Z` with the codename in the
 tag message and `git push --tags`.
 
+Bump the **minor** version for a batch of player-visible features, cut only after a playtest
+says it's ready, not per feature or on a schedule. **Patch** releases are fixes only and take
+no codename (heading `## [X.Y.Z] — YYYY-MM-DD`), which keeps the alphabet for real content.
+
 **User-visible changes go in `CHANGELOG.md` under `## [Unreleased]`** in the same commit,
 grouped Added / Changed / Fixed. Describe what a player or contributor notices, not the diff;
 internal refactors only earn a line when they change how you work with the code (the
