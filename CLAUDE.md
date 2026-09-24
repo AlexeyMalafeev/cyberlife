@@ -87,12 +87,17 @@ Everything is a function that takes the `Player` dataclass and mutates it; there
   whose `stage` is in `data.PARTNER_STAGES`. Change her `stage`, never assign `partner`. Each
   conversation adds its net score to `affection`, and she only becomes a partner once
   `DATE_MIN_MEETINGS` and `DATE_PARTNER_AFFECTION` are met. `romance.night` handles neglect,
-  worry, leaving and moving in. Each round Python picks the topic (a random draw with no
-  repeats) and which reply is good/bad/neutral, and the model (one JSON call via
-  `llm.parse_json`) only words it. Stock `lines`/`good`/`bad` lists are parallel: `good[i]`
-  answers `lines[i]`. Tests steer choices by kind with the `steer` fixture in
-  `tests/test_romance.py`. `always` there gives a one-woman cast who's always at the bar, and the
-  shared `dating` fixture gives `player` a partner.
+  worry, leaving and moving in. Her traits live in `romance.TRAITS` (topic kind → her field
+  and `data.DATE_*` table). Each round Python picks the topic (`plan_topics`: trait topics she
+  hasn't told you yet first, deeper kinds gated by `DATE_TOPIC_DEPTH`, plus maybe a follow-up
+  `("callback", ...)` and a `("question", ...)` about you, shuffled) and how each reply scores
+  (`score()`: good/bad/neutral for her topics, truth/lie/dodge for questions, small talk by
+  temperament). The model (one JSON call via `llm.parse_json`) only words it. Stock
+  `lines`/`good`/`bad` lists are parallel: `good[i]` answers `lines[i]`. Tests steer replies
+  with the `steer` fixture in `tests/test_romance.py`, which takes the next scripted reply that
+  fits each round's type. That file's autouse `plain_rounds` turns off follow-ups, questions
+  and temperament scoring unless a test opts back in. `always` gives a one-woman cast who's
+  always at the bar, and the shared `dating` fixture gives `player` a partner.
 - **`ui.py`** owns all input. Text prompts go through `_read`, which raises `QuitGame` on `q`/EOF; `game.run` catches it. Menus, y/n and `pause()` go through `_read_key`, which reads one raw keypress on a real terminal (`RAW_KEYS`) and otherwise falls back to `_read`. Menu keys come from `MENU_KEYS` (1-9, 0, then letters without `q`). Don't call `input()` directly elsewhere or the fuzzer/quit handling breaks.
 
 ## Balance notes

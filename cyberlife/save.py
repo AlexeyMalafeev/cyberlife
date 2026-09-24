@@ -93,22 +93,32 @@ def read(slot):
     return player
 
 
-_TRAITS = {"occupation": data.DATE_OCCUPATIONS, "temperament": data.DATE_TEMPERAMENTS,
-           "value": data.DATE_VALUES, "peeve": data.DATE_PEEVES, "chrome": data.DATE_CHROME}
-
-
 def _cast_member(entry):
-    """A stored cast entry with any missing relationship fields filled in, or None if it's
-    unusable (not a dict, no name, or traits that no longer exist in the game)."""
-    if not (isinstance(entry, dict) and isinstance(entry.get("name"), str)):
+    """A stored cast entry, repaired, or None if she's unusable.
+
+    Missing relationship fields take defaults and missing traits (ones added to the game since
+    the save) are drawn fresh. A woman with no name, or a trait that no longer exists in the
+    game, is dropped; forgotten topics and questions are just forgotten.
+    """
+    if not (isinstance(entry, dict) and isinstance(entry.get("name"), str)
+            and entry.get("occupation") in data.DATE_OCCUPATIONS):
         return None
-    member = {**romance.RELATIONSHIP, **entry}
-    interests = member.get("interests")
-    if (any(member.get(k) not in table for k, table in _TRAITS.items())
-            or not isinstance(interests, list) or len(interests) != 2
+    member = romance.fill_traits({**romance.relationship(), **entry})
+    interests = member["interests"]
+    if (not isinstance(interests, list) or len(interests) != 2
             or any(i not in data.DATE_INTERESTS for i in interests)
+            or any(member[field] not in table for kind, (field, table) in romance.TRAITS.items()
+                   if kind != "interest")
             or member["stage"] not in data.CAST_STAGES):
         return None
+    for field in ("discussed", "asked", "lies"):
+        if not isinstance(member[field], list):
+            member[field] = []
+    member["discussed"] = [t for t in member["discussed"]
+                           if isinstance(t, list) and len(t) == 2 and t[0] in romance.TRAITS
+                           and t[1] in romance.TRAITS[t[0]][1]]
+    member["asked"] = [q for q in member["asked"] if q in data.DATE_QUESTIONS]
+    member["lies"] = [q for q in member["lies"] if q in data.DATE_QUESTIONS]
     return member
 
 

@@ -60,7 +60,9 @@ def test_encounter_tables_have_positive_weights():
 def test_every_topic_has_paired_stock_lines():
     """Stock rounds pick lines[i] with good[i] and bad[i], so the lists must line up."""
     topics = [data.DATE_OCCUPATIONS, data.DATE_INTERESTS, data.DATE_VALUES, data.DATE_PEEVES,
-              {k: v for k, v in data.DATE_CHROME.items() if k != "indifferent"}]
+              {k: v for k, v in data.DATE_CHROME.items() if k != "indifferent"},
+              data.DATE_CORPS, data.DATE_VICES, data.DATE_BELIEFS, data.DATE_ORIGINS,
+              data.DATE_DREAMS, data.DATE_FAMILIES, data.DATE_WOUNDS]
     for table in topics:
         for key, entry in table.items():
             assert entry["lines"], key
@@ -123,3 +125,39 @@ def test_relationship_tables():
 def test_jobs_have_a_prompt_description():
     for job in data.JOBS:
         assert job["desc"] and job["desc"] != job["name"], job["id"]
+
+
+def test_deeper_trait_tables():
+    from cyberlife import romance
+    assert set(data.DATE_TOPIC_DEPTH) <= set(romance.TRAITS)
+    # Follow-ups quote these back, and need at least one wrong answer to offer.
+    for table in (data.DATE_OCCUPATIONS, data.DATE_VICES, data.DATE_BELIEFS, data.DATE_ORIGINS,
+                  data.DATE_DREAMS, data.DATE_FAMILIES):
+        assert len(table) >= 3
+        for key, entry in table.items():
+            assert entry["recall"], key
+    for key, entry in data.DATE_OCCUPATIONS.items():
+        for kind, lean in entry.get("leans", {}).items():
+            assert lean in romance.TRAITS[kind][1], key
+    for entry in data.DATE_CORPS.values():
+        assert set(entry["likes_work"]) <= {"corpo", "legit", "runner", "broke"}
+    assert all(isinstance(v["likes_trouble"], bool) for v in data.DATE_VALUES.values())
+    assert all(isinstance(v["likes_truth"], bool) for v in data.DATE_CHROME.values())
+    for t in data.DATE_TEMPERAMENTS.values():
+        assert t.get("neutral", 0) in (-1, 0, 1) and t.get("neutral_first", 0) in (-1, 0, 1)
+    assert 0 < data.DATE_LEAN_CHANCE < 1
+    assert any(job.get("corp") for job in data.JOBS)
+
+
+def test_callback_and_question_tables():
+    for reply in data.DATE_CALLBACK["replies"]:
+        assert "THING" in reply.format(thing="THING") and not reply.startswith("{")
+    assert data.DATE_CALLBACK["lines"] and data.DATE_DODGE
+    assert set(data.DATE_QUESTIONS) == {"work", "chrome", "trouble"}
+    for qid, q in data.DATE_QUESTIONS.items():
+        assert q["lines"] and q["lie"] and q["about"] and q["lie_brief"], qid
+        assert "NAME" in q["caught"].format(name="NAME"), qid
+    work = data.DATE_QUESTIONS["work"]
+    assert set(work["truth"]) == set(work["truth_brief"]) == {"corpo", "legit", "runner", "broke"}
+    for n in (data.DATE_CALLBACK_CHANCE, data.DATE_QUESTION_CHANCE, data.DATE_LIE_CAUGHT):
+        assert 0 < n <= 1

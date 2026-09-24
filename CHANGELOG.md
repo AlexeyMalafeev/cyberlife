@@ -27,17 +27,32 @@ Every release carries a codename that riffs on what it introduced, and the coden
   humanity drop below 35 and she cools on you, a little every night, until she leaves. Stay close
   for two weeks with things going well and she moves in, which halves your rent. Some nights
   she calls because she needs 200¢; helping or refusing both stay with her.
+- Seven new sides to every woman: her stance on the corps, a guilty pleasure, what she believes
+  in, where she's from, what she dreams of, her family, and something painful she carries.
+  The lighter ones can come up the first night; where she's from, her dream and her family wait
+  for the second meeting, and what she carries for the third. She tells you things she hasn't
+  told you yet before repeating herself, so each night you learn someone new.
+- She checks whether you were listening. From the second meeting she may ask what you remember;
+  both answers sound the same, but only one gets her story right.
+- She asks about you: what you do for work, about your chrome, whether you're trouble. The
+  truth lands or doesn't depending on her (a corporate job won't impress a saboteur) and on
+  your real job, chrome and heat. A lie always goes down well, but every time you meet again
+  she might find out, and it costs more with someone who values honesty. Once you're together
+  she can find out any night.
+- Her temperament matters: small talk bores an intense woman, and a guarded one appreciates
+  it the first night. Her job hints at what she's like, but half the time she's the opposite
+  of what you'd guess (a medic who loves chrome, a corporate analyst who wants to climb).
 - Marrow sells a visa for two (25,000¢). Every ending says what became of her: whether she came
   with you, was left asleep, or was the one who reported you missing.
 
 ### Changed
 
-- Bar conversations cover her job, interests, values, pet peeve and view of chrome in a random
-  order each night, with no topic twice. Her job is no longer always the opener, and when there
-  are more topics than rounds, some go unmentioned.
+- Bar conversations cover whatever she's willing to talk about in a random order each night,
+  with no topic twice. Her job is no longer always the opener, and there's more to her than one
+  night covers.
 - Saves are now version 2. An older save's partner joins the cast as the woman you're seeing,
-  and the rest of the cast is generated when it loads. Stored women with missing fields or
-  traits no longer in the game are fixed or replaced.
+  and the rest of the cast is generated when it loads. Stored women missing a trait get one
+  drawn fresh; a woman with a trait no longer in the game is replaced.
 
 ## [0.2.0] — "Blade Rendezvous" — 2026-09-24
 

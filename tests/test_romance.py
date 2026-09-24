@@ -28,6 +28,21 @@ def round_json(n=0):
                        "bad": f"Bad reply {n}.", "neutral": f"Neutral reply {n}."})
 
 
+REAL_TEMPERAMENTS = data.DATE_TEMPERAMENTS
+LIGHT = {"occupation", "interest", "value", "peeve", "chrome", "corps", "vice", "belief"}
+
+
+@pytest.fixture(autouse=True)
+def plain_rounds(monkeypatch):
+    """Unless a test opts back in: no follow-ups, no questions about you, and small talk scores 0
+    whatever her temperament, so steer("neutral") means exactly 0."""
+    monkeypatch.setattr(data, "DATE_CALLBACK_CHANCE", 0.0)
+    monkeypatch.setattr(data, "DATE_QUESTION_CHANCE", 0.0)
+    monkeypatch.setattr(data, "DATE_TEMPERAMENTS", {
+        k: {f: v for f, v in t.items() if f not in ("neutral", "neutral_first")}
+        for k, t in REAL_TEMPERAMENTS.items()})
+
+
 @pytest.fixture
 def always(monkeypatch):
     """Every bar visit has an encounter, with a one-woman cast who's always there alone."""
@@ -45,6 +60,8 @@ def her(player, always):
 def steer(monkeypatch):
     """Answer each round's menu with the reply of the kind scripted, whatever order it's shown in.
 
+    Replies are taken in order, per round type: a round about her takes the next of
+    good/bad/neutral, a question about you the next of truth/lie/dodge, wherever it falls.
     accept=True/False answers the "Try your luck?" prompt first; None skips it (for chat() alone).
     Returns the input queue; steer.keys records every menu key it picked.
     """
@@ -57,8 +74,10 @@ def steer(monkeypatch):
 
         def sample(population, k):
             order = real_sample(population, k)
-            if tuple(population) == romance.KINDS and plan:
-                key = str(order.index(plan.pop(0)) + 1)
+            fits = [r for r in plan if r in population]
+            if tuple(population) in (romance.KINDS, romance.ANSWERS) and fits:
+                plan.remove(fits[0])
+                key = str(order.index(fits[0]) + 1)
                 queue.append(key)
                 _steer.keys.append(key)
             return order
@@ -102,37 +121,284 @@ def test_generated_traits_are_valid():
         assert her["occupation"] in data.DATE_OCCUPATIONS and her["chrome"] in data.DATE_CHROME
 
 
-def test_topics_fill_every_round_without_repeats():
+def test_topics_fill_every_round_without_repeats(player):
     random.seed(2)
     for _ in range(100):
-        her = romance.generate()
-        topics = romance.plan_topics(her)
+        her = romance.new_member()
+        topics = romance.plan_topics(her, player)
         assert len(topics) == data.DATE_ROUNDS
         assert len(set(topics)) == len(topics)
         assert ("chrome", "indifferent") not in topics
-        about_her = {("occupation", her["occupation"]), ("value", her["value"]),
-                     ("peeve", her["peeve"]), ("chrome", her["chrome"])}
-        about_her |= {("interest", i) for i in her["interests"]}
-        assert set(topics) <= about_her
+        assert set(topics) <= set(romance.trait_topics(her))
 
 
-def test_topics_come_in_any_order_and_some_get_skipped():
-    """Her work isn't always the opener; with an opinion on chrome, one topic goes unsaid."""
+def test_first_night_topics_come_in_any_order_and_some_get_skipped(player):
+    """Her work isn't always the opener, and there's more to her than one night covers."""
     random.seed(6)
-    her = romance.generate()
+    her = romance.new_member()
     her["chrome"] = "wary"
-    plans = [romance.plan_topics(her) for _ in range(300)]
-    kinds = {"occupation", "interest", "value", "peeve", "chrome"}
-    assert {plan[0][0] for plan in plans} == kinds
-    assert {plan[-1][0] for plan in plans} == kinds
-    for kind in kinds - {"interest"}:
+    plans = [romance.plan_topics(her, player) for _ in range(300)]
+    assert {plan[0][0] for plan in plans} == LIGHT
+    assert {plan[-1][0] for plan in plans} == LIGHT
+    for kind in LIGHT - {"interest"}:
         assert any(kind not in {k for k, _ in plan} for plan in plans), kind
 
 
-def test_same_woman_different_night_different_order():
+def test_same_woman_different_night_different_order(player):
     random.seed(9)
-    her = romance.generate()
-    assert len({tuple(romance.plan_topics(her)) for _ in range(20)}) > 1
+    her = romance.new_member()
+    assert len({tuple(romance.plan_topics(her, player)) for _ in range(20)}) > 1
+
+
+@pytest.mark.parametrize("times_met, unlocked", [
+    (0, set()), (1, {"origin", "dream", "family"}), (2, {"origin", "dream", "family", "wound"}),
+])
+def test_deeper_topics_wait_until_she_knows_you(times_met, unlocked):
+    random.seed(3)
+    her = romance.new_member()
+    her["times_met"] = times_met
+    kinds = {kind for kind, _ in romance.trait_topics(her)}
+    assert kinds - LIGHT == unlocked
+
+
+def test_things_she_hasnt_told_you_come_first(player):
+    random.seed(4)
+    her = romance.new_member()
+    her["times_met"] = 1
+    told = romance.trait_topics(her)[:6]
+    her["discussed"] = [list(t) for t in told]
+    for _ in range(50):
+        plan = romance.plan_topics(her, player)
+        assert not set(plan) & set(told)          # there are enough new things to fill a night
+
+
+def test_topics_played_are_remembered(player, steer):
+    random.seed(5)
+    her = romance.new_member()
+    steer(*["neutral"] * 5, accept=None)
+    romance.chat(player, her)
+    assert len(her["discussed"]) == data.DATE_ROUNDS
+    assert all(tuple(t) in romance.trait_topics(her) for t in her["discussed"])
+
+
+# -- who she is, deeper ---------------------------------------------------
+
+def test_every_trait_is_drawn_and_valid():
+    random.seed(7)
+    for _ in range(200):
+        her = romance.generate()
+        for kind, (field, table) in romance.TRAITS.items():
+            values = her[field] if kind == "interest" else [her[field]]
+            assert all(v in table for v in values), kind
+
+
+def test_her_job_suggests_but_doesnt_decide(monkeypatch):
+    """A medic leans wary of chrome, but sometimes she's the opposite of what her job suggests."""
+    random.seed(8)
+    monkeypatch.setattr(data, "DATE_OCCUPATIONS", {"medtech": data.DATE_OCCUPATIONS["medtech"]})
+    views = [romance.generate()["chrome"] for _ in range(400)]
+    wary = views.count("wary") / len(views)
+    assert 0.4 < wary < 0.7                      # the lean, about half the time...
+    assert {"loves", "indifferent"} <= set(views)  # ...and the rest, anything but
+    monkeypatch.setattr(data, "DATE_LEAN_CHANCE", 0.0)
+    assert "wary" not in {romance.generate()["chrome"] for _ in range(100)}
+
+
+def test_persona_holds_back_deeper_traits_until_unlocked(player):
+    random.seed(9)
+    her = romance.new_member()
+    her["last_outcome"] = 2
+    wound = data.DATE_WOUNDS[her["wound"]]["desc"]
+    dream = data.DATE_DREAMS[her["dream"]]["desc"]
+    first = romance._persona(her, player)
+    assert data.DATE_VICES[her["vice"]]["desc"] in first
+    assert dream not in first and wound not in first
+    her["times_met"] = 2
+    later = romance._persona(her, player)
+    assert dream in later and wound in later
+
+
+def test_persona_knows_what_shes_already_told_you(player):
+    random.seed(9)
+    her = romance.new_member()
+    her["discussed"] = [["vice", her["vice"]]]
+    assert data.DATE_VICES[her["vice"]]["recall"] in romance._persona(her, player)
+
+
+# -- small talk and temperament ------------------------------------------
+
+@pytest.mark.parametrize("temperament, times_met, points", [
+    ("warm", 0, 0), ("intense", 0, -1), ("intense", 3, -1), ("guarded", 0, 1), ("guarded", 1, 0),
+])
+def test_small_talk_depends_on_her_temperament(monkeypatch, temperament, times_met, points):
+    monkeypatch.setattr(data, "DATE_TEMPERAMENTS", REAL_TEMPERAMENTS)
+    her = romance.new_member()
+    her.update(temperament=temperament, times_met=times_met)
+    assert romance.small_talk(her) == points
+
+
+def test_small_talk_bores_an_intense_woman_all_night(player, steer, monkeypatch):
+    monkeypatch.setattr(data, "DATE_TEMPERAMENTS", REAL_TEMPERAMENTS)
+    her = romance.new_member()
+    her["temperament"] = "intense"
+    steer(*["neutral"] * 5, accept=None)
+    net, walked_out, history = romance.chat(player, her)
+    assert (net, walked_out, len(history)) == (-3, True, 3)
+
+
+# -- follow-ups ----------------------------------------------------------
+
+@pytest.fixture
+def followups(monkeypatch):
+    monkeypatch.setattr(data, "DATE_CALLBACK_CHANCE", 1.0)
+
+
+def test_no_follow_up_on_the_first_night(player, followups):
+    her = romance.new_member()
+    assert all(kind != "callback" for kind, _ in romance.plan_topics(her, player))
+
+
+def test_follow_up_tests_your_memory(player, followups):
+    random.seed(10)
+    her = romance.new_member()
+    her.update(times_met=1, discussed=[["vice", her["vice"]], ["value", her["value"]]])
+    plan = romance.plan_topics(her, player)
+    (callback,) = [t for t in plan if t[0] == "callback"]
+    kind, right, wrong = callback[1]
+    assert (kind, right) == ("vice", her["vice"])     # values aren't quoted back; vices are
+    assert wrong != right and wrong in data.DATE_VICES
+    stock = romance.stock_round(her, player, callback)
+    assert data.DATE_VICES[right]["recall"] in stock["good"]
+    assert data.DATE_VICES[wrong]["recall"] in stock["bad"]
+    # Same sentence either way: only the detail tells them apart.
+    assert stock["good"].replace(data.DATE_VICES[right]["recall"], "X") == \
+           stock["bad"].replace(data.DATE_VICES[wrong]["recall"], "X")
+
+
+def test_follow_up_scores_like_any_round(player, followups, steer):
+    random.seed(11)
+    her = romance.new_member()
+    her.update(times_met=1, last_outcome=2, discussed=[["interest", her["interests"][0]]])
+    steer(*["good"] * 5, accept=None)
+    net, _, _ = romance.chat(player, her)
+    assert net == 5
+    assert ["interest", her["interests"][0]] in her["discussed"]
+    assert all(t[0] != "callback" for t in her["discussed"])
+
+
+# -- she asks about you ---------------------------------------------------
+
+@pytest.fixture
+def asking(monkeypatch):
+    monkeypatch.setattr(data, "DATE_QUESTION_CHANCE", 1.0)
+
+
+def test_which_questions_she_can_ask(player):
+    her = romance.new_member()
+    player.heat, player.cred = 0, 0
+    assert romance.questions(her, player) == ["work"]
+    player.cyberware = ["optics"]
+    player.heat = data.DATE_TROUBLE_HEAT
+    assert romance.questions(her, player) == ["work", "chrome", "trouble"]
+    her["asked"] = ["work", "trouble"]
+    assert romance.questions(her, player) == ["chrome"]
+
+
+@pytest.mark.parametrize("job, cred, work", [
+    ("netrunner", 0, "corpo"), ("courier", 50, "legit"), (None, data.DATE_RUNNER_CRED, "runner"),
+    (None, 0, "broke"),
+])
+def test_your_work_as_she_sees_it(player, job, cred, work):
+    player.job_id, player.cred = job, cred
+    assert romance.your_work(player) == work
+
+
+@pytest.mark.parametrize("corps, job, lands", [
+    ("climber", "netrunner", True), ("climber", None, False),
+    ("saboteur", "netrunner", False), ("saboteur", None, True),
+    ("drifter", "netrunner", True), ("drifter", None, True),
+])
+def test_the_truth_about_your_work_depends_on_her(player, corps, job, lands):
+    her = romance.new_member()
+    her["corps"] = corps
+    player.job_id, player.cred = job, 0
+    assert romance.truth_lands(her, player, "work") is lands
+    assert romance.score(her, player, ("question", "work"), "truth") == (1 if lands else -1)
+    assert romance.score(her, player, ("question", "work"), "lie") == 1
+
+
+def test_the_truth_about_your_chrome_and_trouble(player):
+    her = romance.new_member()
+    her.update(chrome="wary", value="loyalty")
+    assert not romance.truth_lands(her, player, "chrome")
+    assert not romance.truth_lands(her, player, "trouble")
+    her.update(chrome="loves", value="thrill")
+    assert romance.truth_lands(her, player, "chrome") and romance.truth_lands(her, player, "trouble")
+
+
+def test_the_truth_uses_your_real_job(player):
+    player.job_id = "courier"
+    her = romance.new_member()
+    stock = romance.stock_round(her, player, ("question", "work"))
+    assert data.job_by_id("courier")["desc"] in stock["truth"]
+    player.cyberware = ["optics"]
+    stock = romance.stock_round(her, player, ("question", "chrome"))
+    assert "Kiroshi Optics" in stock["truth"]
+
+
+def test_a_lie_is_remembered_and_can_be_caught(player, asking, steer, force_roll, capsys):
+    her = romance.new_member()
+    her.update(corps="saboteur", value="freedom")
+    player.job_id = "netrunner"                        # the truth wouldn't land with her
+    steer("lie", *["neutral"] * 4, accept=None)
+    net, _, _ = romance.chat(player, her)
+    assert net == 1
+    assert her["asked"] == ["work"] and her["lies"] == ["work"]
+    assert "work" not in romance.questions(her, player)     # she won't ask twice
+    before = her["affection"]
+    force_roll(0.0)
+    romance.catch_lies(her)
+    assert her["lies"] == [] and her["affection"] == before - data.DATE_LIE_COST
+    assert "really do for a living" in capsys.readouterr().out
+
+
+def test_lying_to_someone_who_values_honesty_costs_double(player, force_roll):
+    her = romance.new_member()
+    her.update(value="honesty", lies=["chrome"])
+    force_roll(0.0)
+    romance.catch_lies(her)
+    assert her["affection"] == -2 * data.DATE_LIE_COST
+
+
+def test_uncaught_lies_stay_hidden(player, force_roll):
+    her = romance.new_member()
+    her["lies"] = ["work"]
+    force_roll(0.99)
+    romance.catch_lies(her)
+    assert her["lies"] == ["work"] and her["affection"] == 0
+
+
+def test_a_dodge_can_be_asked_again(player, asking, steer):
+    her = romance.new_member()
+    steer("dodge", *["neutral"] * 4, accept=None)
+    net, _, _ = romance.chat(player, her)
+    assert net == 0 and her["asked"] == [] and her["lies"] == []
+
+
+def test_lies_come_out_when_you_meet_again(player, steer, her, force_roll):
+    her.update(stage="met", times_met=1, last_outcome=2, lies=["work"])
+    force_roll(0.0)
+    steer(*["neutral"] * 5)
+    romance.encounter(player)
+    assert her["lies"] == [] and her["affection"] == -data.DATE_LIE_COST
+
+
+def test_a_partner_can_catch_a_lie_at_night(player, dating, force_roll):
+    dating["lies"] = ["trouble"]
+    before = dating["affection"]
+    force_roll(0.0)
+    romance.night(player)
+    assert dating["lies"] == [] and dating["affection"] == before - data.DATE_LIE_COST
 
 
 def test_stock_scene_hides_her_personality():
@@ -415,7 +681,7 @@ def test_unusable_rounds_fall_back_to_stock(player, reply):
     llm.use(Stub(reply))
     random.seed(4)
     her = romance.new_member()
-    topic = romance.plan_topics(her)[0]
+    topic = romance.plan_topics(her, player)[0]
     assert romance.voice_round(her, player, topic, [], None) is None
 
 
@@ -498,6 +764,30 @@ def test_bad_or_missing_old_partner_loads_as_single(player, stored):
     assert loaded.partner is None
     assert len(loaded.cast) == data.CAST_SIZE
     assert all(c["stage"] == "stranger" for c in loaded.cast)
+
+
+def test_older_cast_entries_get_the_new_traits(player):
+    """A woman saved before she had a dream or a family keeps who she was and gains the rest."""
+    romance.ensure_cast(player)
+    kept = dict(player.cast[0])
+    for field in ("dream", "family", "wound", "corps", "vice", "belief", "origin",
+                  "discussed", "asked", "lies"):
+        del player.cast[0][field]
+    save.write(player, 1)
+    loaded = save.read(1).cast[0]
+    assert loaded["name"] == kept["name"] and loaded["occupation"] == kept["occupation"]
+    assert loaded["dream"] in data.DATE_DREAMS and loaded["wound"] in data.DATE_WOUNDS
+    assert loaded["discussed"] == [] and loaded["lies"] == []
+
+
+def test_forgotten_topics_and_questions_are_dropped_on_load(player):
+    romance.ensure_cast(player)
+    her = player.cast[0]
+    her["discussed"] = [["vice", her["vice"]], ["vice", "gone-from-the-game"], "junk"]
+    her["lies"] = ["work", "gone"]
+    save.write(player, 1)
+    loaded = save.read(1).cast[0]
+    assert loaded["discussed"] == [["vice", her["vice"]]] and loaded["lies"] == ["work"]
 
 
 def test_damaged_cast_entries_are_replaced(player):
@@ -584,6 +874,29 @@ def test_she_knows_your_handle_and_your_job(player, steer, always):
         assert f"uses {player.handle}" in system
         assert "junior netrunner at Tessier, a corporation" in system
         assert "Junior netrunner, Tessier" not in system
+
+
+def test_model_voices_a_question_with_its_own_replies(player):
+    llm.use(Stub(json.dumps({"line": "So what do you do?", "truth": "I run gigs.",
+                             "lie": "Logistics.", "dodge": "Long story."})))
+    player.job_id = None
+    her = romance.new_member()
+    topic = ("question", "work")
+    messages = romance.round_messages(her, player, topic, [], None)
+    prompt = messages[1]["content"]
+    assert '"truth"' in prompt and '"lie"' in prompt and '"dodge"' in prompt
+    assert '"good"' not in prompt
+    beat = romance.voice_round(her, player, topic, [], None)
+    assert beat == {"line": "So what do you do?", "truth": "I run gigs.", "lie": "Logistics.",
+                    "dodge": "Long story."}
+
+
+def test_model_follow_up_brief_names_the_right_and_wrong_memory(player):
+    her = romance.new_member()
+    topic = ("callback", ("vice", "karaoke", "gambling"))
+    prompt = romance.round_messages(her, player, topic, [], None)[1]["content"]
+    assert data.DATE_VICES["karaoke"]["recall"] in prompt
+    assert data.DATE_VICES["gambling"]["recall"] in prompt
 
 
 def test_peeve_rounds_brief_the_good_reply(player):
