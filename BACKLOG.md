@@ -236,11 +236,13 @@ a relationship something you work toward over several nights.
   `--seed` reproduces the cast) and store it on `Player`, e.g. `Player.cast: list[dict]`, each
   entry holding her profile plus relationship state: `affection`, `times_met`, `last_met_day`,
   and whether she's `met` at all.
-- The bar encounter picks from the roster instead of generating a stranger: on an encounter
-  roll, one or two of them are there (open question: one or two *at once*, or one per visit
-  drawn from any of them?). Someone you haven't met gets the opening scene and introduction;
-  someone you have gets a "she's here again" beat and no re-introduction, with the model shown
-  a short summary of how your last meeting went.
+- The bar encounter picks from the roster instead of generating a stranger. On an encounter
+  roll, one or two of them are at the bar at the same time, sitting in different spots. Each
+  gets a short description, and you choose which one to approach (or neither). You can only
+  talk to **one** per visit; the other is gone by the time you're done. Picking her over
+  the other is a choice by itself; it doesn't affect the one you skipped. Someone you haven't
+  met gets the opening scene and introduction; someone you have gets a "she's here again" beat
+  and no re-introduction, with the model shown a short summary of how your last meeting went.
 - **One meeting is never enough.** Each conversation adds its net score to `affection`; she
   becomes your partner only once `affection` passes a threshold *and* `times_met` is at least
   some minimum (3?). A single perfect night tops out at the kiss tier. A walkout or a very bad
@@ -249,7 +251,8 @@ a relationship something you work toward over several nights.
   means, so bump `SAVE_VERSION` and migrate an existing `partner` into the cast.
 - Relationships are persisted as part of the roster, so they survive save/load with it.
 
-**Tests:** same seed, same cast; an encounter only ever picks cast members; a met character
+**Tests:** same seed, same cast; an encounter only ever picks cast members, one or two
+distinct ones, and approaching one ends the encounter without the other; a met character
 isn't re-introduced; affection accumulates across meetings; no partner before the minimum
 number of meetings even with perfect scores; the cast round-trips through save/load; an old
 save with `partner` migrates into the cast.
