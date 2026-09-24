@@ -3,7 +3,7 @@ import socket
 
 import pytest
 
-from cyberlife import data, llm, romance, save, ui
+from cyberlife import data, debug, llm, romance, save, ui
 from cyberlife.player import Player
 
 
@@ -45,6 +45,14 @@ def no_network(monkeypatch):
         raise AssertionError("test tried to open a network connection")
     monkeypatch.setattr(socket, "socket", refuse)
     monkeypatch.setattr(socket, "create_connection", refuse)
+
+
+@pytest.fixture(autouse=True)
+def debug_off():
+    """Debug mode (and its character sheets) is module state; every test starts without it."""
+    debug.enable(False)
+    yield
+    debug.enable(False)
 
 
 @pytest.fixture(autouse=True)

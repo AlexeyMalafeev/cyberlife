@@ -16,12 +16,13 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # one-time setup (p
 .venv/bin/pytest -k "not random_play"           # skip the 40-seed fuzz
 python3 -m cyberlife                            # play (stdlib only, no venv needed)
 python3 -m cyberlife --seed 7                   # repeatable RNG for reproducing a bug
+python3 -m cyberlife --debug                    # day menu gains Debug: edit state, stage an encounter
 NO_COLOR=1 python3 -m cyberlife                 # plain output (also auto when stdout isn't a tty)
 ```
 
 ## Testing
 
-**Every feature or behavior change ships with tests in the same commit.** New action → `tests/test_actions.py`; new event → `tests/test_events.py` (the parametrized `test_each_handler_runs_when_eligible` picks it up automatically, but add a targeted test for its choices/outcomes); loop/rent/ending changes → `tests/test_game.py`; new content tables → `tests/test_data.py` sanity checks; encounter/dialog-game/relationship changes → `tests/test_romance.py`.
+**Every feature or behavior change ships with tests in the same commit.** New action → `tests/test_actions.py`; new event → `tests/test_events.py` (the parametrized `test_each_handler_runs_when_eligible` picks it up automatically, but add a targeted test for its choices/outcomes); loop/rent/ending changes → `tests/test_game.py`; new content tables → `tests/test_data.py` sanity checks; encounter/dialog-game/relationship changes → `tests/test_romance.py`. Debug-menu changes → `tests/test_debug.py`.
 
 Fixtures in `tests/conftest.py`:
 - `isolated_saves` (autouse) — points the save directory at `tmp_path`. Tests must never
@@ -97,6 +98,12 @@ Everything is a function that takes the `Player` dataclass and mutates it; there
   answers `lines[i]`. Tests steer choices by kind with the `steer` fixture in
   `tests/test_romance.py`. `always` there gives a one-woman cast who's always at the bar, and the
   shared `dating` fixture gives `player` a partner.
+- **`debug.py`** is the `--debug` menu, a free day-menu entry. It edits `Player` fields directly
+  and stages encounters with `romance.meet(player, [her])`, which is `encounter` minus the dice.
+  `debug.ENABLED` and `romance.SHOW_SHEETS` (print `romance.sheet(her)` before each scene) are
+  module state, so the autouse `debug_off` fixture resets them. When you add a stat or a cast
+  field the game doesn't clamp, give the debug editor a floor for it: the debug fuzz test
+  types junk numbers.
 - **`ui.py`** owns all input. Text prompts go through `_read`, which raises `QuitGame` on `q`/EOF; `game.run` catches it. Menus, y/n and `pause()` go through `_read_key`, which reads one raw keypress on a real terminal (`RAW_KEYS`) and otherwise falls back to `_read`. Menu keys come from `MENU_KEYS` (1-9, 0, then letters without `q`). Don't call `input()` directly elsewhere or the fuzzer/quit handling breaks.
 
 ## Balance notes

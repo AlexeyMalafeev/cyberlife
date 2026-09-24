@@ -3,7 +3,7 @@ import random
 
 import time
 
-from . import actions, data, events, romance, save
+from . import actions, data, debug, events, romance, save
 from .player import Player
 from .ui import (QuitGame, say, hr, header, bar, bold, dim, red, green,
                  yellow, cyan, neon, menu, ask_text, ask_yes_no, pause)
@@ -179,6 +179,8 @@ def day_loop(player):
         if player.job:
             options.append((dim("Quit job"), actions.quit_job))
         options.append((dim("Save game"), save_game))
+        if debug.ENABLED:
+            options.append((yellow("Debug"), debug.debug_menu))
         options.append((dim("End the day"), None))
         choice = menu("What now?", [label for label, _ in options])
         say()

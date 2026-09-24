@@ -8,12 +8,13 @@ or not a model is on, so a --seed plays out the same either way.
 import random
 
 from . import data, llm
-from .ui import say, dim, cyan, green, red, neon, menu, ask_yes_no
+from .ui import say, dim, cyan, green, red, neon, yellow, menu, ask_yes_no
 
 KINDS = ("good", "bad", "neutral")
 SCORE = {"good": 1, "bad": -1, "neutral": 0}
 SCENE_LIMIT = 420      # characters of model narration we'll print
 REPLY_LIMIT = 160
+SHOW_SHEETS = False    # print each woman's sheet() before her scene; the debug menu toggles it
 
 
 # -- who she is ----------------------------------------------------------
@@ -308,9 +309,17 @@ def encounter(player):
     here = present(player)
     if not here:
         return None
+    return meet(player, here)
+
+
+def meet(player, here):
+    """Seat `here` (one or two cast members) at the bar and play the night out. Returns the
+    stress change to report. The debug menu calls this directly to skip the dice."""
     spots = random.sample(data.BAR_SPOTS, len(here))
     for her, spot in zip(here, spots):
         say()
+        if SHOW_SHEETS:
+            sheet(her)
         say(neon(scene(her, spot)))
     her = _choose(here, spots)
     if her is None:
@@ -322,7 +331,7 @@ def encounter(player):
         say(dim(f"You slide onto the stool next to her and trade names over the noise. "
                 f"She's {her['name']}."))
     net, walked_out, history = chat(player, her)
-    ready = (her["times_met"] + 1 >= data.DATE_MIN_MEETINGS
+    ready = (player.partner is None and her["times_met"] + 1 >= data.DATE_MIN_MEETINGS
              and her["affection"] + net >= data.DATE_PARTNER_AFFECTION)
     ending = outcome(net, walked_out, ready)
     say()
@@ -337,6 +346,29 @@ def encounter(player):
         start_relationship(player, her)
         say(green(f"You're seeing {her['name']} now."))
     return ending["stress"]
+
+
+def sheet(her):
+    """Print her hidden profile and where she stands with you. Debug only: in play, reading
+    her is the whole game."""
+    rows = [
+        ("Look", f"{her['build']}, {her['hair']}, {her['eyes']}, {her['style']}, {her['feature']}"),
+        ("Manner", f"{her['temperament']}: {data.DATE_TEMPERAMENTS[her['temperament']]['desc']}"),
+        ("Work", data.DATE_OCCUPATIONS[her["occupation"]]["desc"]),
+        ("Loves", " and ".join(data.DATE_INTERESTS[i]["label"] for i in her["interests"])),
+        ("Values", data.DATE_VALUES[her["value"]]["desc"]),
+        ("Can't stand", data.DATE_PEEVES[her["peeve"]]["desc"]),
+        ("Chrome", f"{her['chrome']}: {data.DATE_CHROME[her['chrome']]['desc']}"),
+    ]
+    status = f"{her['stage']}, met {her['times_met']}x, affection {her['affection']}"
+    if her["last_outcome"] is not None:
+        status += f"; last time {data.DATE_OUTCOMES[her['last_outcome']]['memory']}"
+    if her["avoid_until"]:
+        status += f"; avoiding you until day {her['avoid_until']}"
+    rows.append(("Status", status))
+    say(yellow(f"-- {her['name']}, {her['age']} " + "-" * 30))
+    for label, text in rows:
+        say(f"   {dim(label.ljust(12))}{text}")
 
 
 # -- together ------------------------------------------------------------

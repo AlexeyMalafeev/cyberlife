@@ -29,6 +29,11 @@ Every release carries a codename that riffs on what it introduced, and the coden
   she calls because she needs 200¢; helping or refusing both stay with her.
 - Marrow sells a visa for two (25,000¢). Every ending says what became of her: whether she came
   with you, was left asleep, or was the one who reported you missing.
+- `--debug` adds a Debug entry to the day menu (a free action) for testing: set stats, skills,
+  cyberware and your job; edit, stage or regenerate the cast; run any night event; and seat a
+  woman of your choice at the bar with no dice roll, even one who's staying away. Her character
+  sheet (looks, hidden traits, where she stands with you) prints before her scene, on staged
+  and ordinary encounters alike; the menu turns it off.
 
 ### Changed
 
