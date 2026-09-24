@@ -260,6 +260,14 @@ Decisions made along the way:
 - The returning-woman greeting is stock text only; the model still narrates strangers.
 - Topics are no longer "her work first". All five or six are shuffled every night and five
   are used, so repeat conversations don't follow the same order.
+- **Deeper personalities (after the first pass):** seven more traits (corps, vice, belief,
+  origin, dream, family, wound), the last four unlocked by meeting count. Follow-up rounds
+  quote a trait's `recall` phrase right or wrong in the same sentence. Questions about you
+  score the truth against her traits and your real state; lies always land, sit in her
+  `lies`, and can surface later. Temperament scores small talk. Occupations `lean` toward a
+  corps or chrome view, and she goes against it half the time. Traits added later are drawn
+  fresh on load rather than invalidating old cast entries, so adding a trait needs no
+  `SAVE_VERSION` bump.
 - Old saves get a freshly generated cast when loaded. That draws from `random`, which is fine
   because a loaded run isn't seed-reproducible anyway.
 

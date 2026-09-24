@@ -1,20 +1,37 @@
 """The cast: women you meet at the bar, talk to over several nights, and maybe end up with.
 
-Everything mechanical happens in Python first: who she is, what each round is about, which
-reply is good/bad/neutral and in what order they're shown. The dialog model (if any) only
-writes words for decisions already made, and every stock line is drawn from `random` whether
-or not a model is on, so a --seed plays out the same either way.
+Everything mechanical happens in Python first: who she is, what each round is about, how each
+reply scores and in what order they're shown. The dialog model (if any) only writes words for
+decisions already made, and every stock line is drawn from `random` whether or not a model is
+on, so a --seed plays out the same either way.
 """
 import random
 
 from . import data, llm
 from .ui import say, dim, cyan, green, red, neon, yellow, menu, ask_yes_no
 
-KINDS = ("good", "bad", "neutral")
-SCORE = {"good": 1, "bad": -1, "neutral": 0}
+KINDS = ("good", "bad", "neutral")               # replies to her talking about herself
+ANSWERS = ("truth", "lie", "dodge")              # replies to her asking about you
+FEEL = {1: "good", -1: "bad", 0: "neutral"}      # how a reply's score reads to her
 SCENE_LIMIT = 420      # characters of model narration we'll print
 REPLY_LIMIT = 160
 SHOW_SHEETS = False    # print each woman's sheet() before her scene; the debug menu toggles it
+
+# Topic kind -> (her field, table). "interest" is a list of two ids; everything else is one id.
+TRAITS = {
+    "occupation": ("occupation", data.DATE_OCCUPATIONS),
+    "interest": ("interests", data.DATE_INTERESTS),
+    "value": ("value", data.DATE_VALUES),
+    "peeve": ("peeve", data.DATE_PEEVES),
+    "chrome": ("chrome", data.DATE_CHROME),
+    "corps": ("corps", data.DATE_CORPS),
+    "vice": ("vice", data.DATE_VICES),
+    "belief": ("belief", data.DATE_BELIEFS),
+    "origin": ("origin", data.DATE_ORIGINS),
+    "dream": ("dream", data.DATE_DREAMS),
+    "family": ("family", data.DATE_FAMILIES),
+    "wound": ("wound", data.DATE_WOUNDS),
+}
 
 
 # -- who she is ----------------------------------------------------------
@@ -28,6 +45,24 @@ def _pick(table):
     return random.choices(phrases, weights)[0]
 
 
+def _lean(table, lean):
+    """A trait her job suggests: `lean` with DATE_LEAN_CHANCE, otherwise anything but."""
+    if lean is None:
+        return _pick(table)
+    if random.random() < data.DATE_LEAN_CHANCE:
+        return lean
+    return _pick({k: v for k, v in table.items() if k != lean})
+
+
+def fill_traits(her):
+    """Draw any traits she's missing (all of them for a new woman; new ones for an old save)."""
+    leans = data.DATE_OCCUPATIONS[her["occupation"]].get("leans", {})
+    for kind, (field, table) in TRAITS.items():
+        if field not in her:
+            her[field] = _lean(table, leans.get(kind))
+    return her
+
+
 def generate(taken=()):
     """A new woman, as a JSON-safe dict: appearance phrases plus personality ids.
 
@@ -35,27 +70,29 @@ def generate(taken=()):
     """
     first = _pick(data.DATE_INTERESTS)
     rest = {k: v for k, v in data.DATE_INTERESTS.items() if k != first}
-    return {
+    return fill_traits({
         "name": random.choice([n for n in data.DATE_NAMES if n not in taken]),
         "age": random.randint(*data.DATE_AGES),
         **{part: _pick(options) for part, options in data.DATE_LOOKS.items()},
         "temperament": _pick(data.DATE_TEMPERAMENTS),
         "occupation": _pick(data.DATE_OCCUPATIONS),
         "interests": [first, _pick(rest)],
-        "value": _pick(data.DATE_VALUES),
-        "peeve": _pick(data.DATE_PEEVES),
-        "chrome": _pick(data.DATE_CHROME),
-    }
+    })
 
 
-# Relationship state every cast member carries next to her profile.
-RELATIONSHIP = {"stage": "stranger", "times_met": 0, "affection": 0, "last_met_day": None,
-                "last_outcome": None, "avoid_until": 0, "since_day": None,
-                "last_seen_day": None, "came_along": False}
+def relationship():
+    """Fresh relationship state, carried by every cast member next to her profile.
+
+    `discussed` holds [kind, id] topics from earlier nights, `asked` the questions you've
+    answered, `lies` the ones you lied to and she hasn't caught yet.
+    """
+    return {"stage": "stranger", "times_met": 0, "affection": 0, "last_met_day": None,
+            "last_outcome": None, "avoid_until": 0, "since_day": None, "last_seen_day": None,
+            "came_along": False, "discussed": [], "asked": [], "lies": []}
 
 
 def new_member(taken=()):
-    return {**generate(taken), **RELATIONSHIP}
+    return {**generate(taken), **relationship()}
 
 
 def ensure_cast(player):
@@ -66,22 +103,121 @@ def ensure_cast(player):
     return player.cast
 
 
-def plan_topics(her):
-    """What each round is about: a shuffled pick of everything there is to know about her.
+# -- what you talk about --------------------------------------------------
 
-    No topic comes up twice in one night. With more topics than rounds, some go unmentioned.
+def _entry(kind, key):
+    return TRAITS[kind][1][key]
+
+
+def _keys(her, kind):
+    value = her[TRAITS[kind][0]]
+    return value if kind == "interest" else [value]
+
+
+def _recall(kind, key):
+    """How you'd bring a topic up again, or None if it's not something you'd quote back."""
+    entry = _entry(kind, key)
+    return entry.get("recall") or (entry["label"] if kind == "interest" else None)
+
+
+def _unlocked(her, kind):
+    return her["times_met"] >= data.DATE_TOPIC_DEPTH.get(kind, 0)
+
+
+def trait_topics(her):
+    """Everything she'd talk about tonight. Deeper things wait until she knows you."""
+    return [(kind, key) for kind in TRAITS if _unlocked(her, kind) for key in _keys(her, kind)
+            if (kind, key) != ("chrome", "indifferent")]
+
+
+def your_work(player):
+    """How your work reads to her: "corpo", "legit", "runner" or "broke"."""
+    if player.job:
+        return "corpo" if player.job.get("corp") else "legit"
+    return "runner" if player.cred >= data.DATE_RUNNER_CRED else "broke"
+
+
+def questions(her, player):
+    """What she might ask about you tonight: things you haven't answered yet."""
+    asks = ["work"]
+    if player.cyberware:
+        asks.append("chrome")
+    if player.heat >= data.DATE_TROUBLE_HEAT or player.cred >= data.DATE_TROUBLE_CRED:
+        asks.append("trouble")
+    return [q for q in asks if q not in her["asked"]]
+
+
+def _callback(her):
+    """A follow-up on something from an earlier night: ("callback", (kind, key, wrong key))."""
+    told = [(k, key) for k, key in her["discussed"] if _recall(k, key)]
+    kind, key = random.choice(told)
+    mine = _keys(her, kind)
+    wrong = random.choice([k for k in TRAITS[kind][1] if k not in mine and _recall(kind, k)])
+    return ("callback", (kind, key, wrong))
+
+
+def plan_topics(her, player):
+    """What each round is about tonight, in order, with no topic twice.
+
+    Things she hasn't told you yet come first; with more than a night's worth, some go unsaid.
+    From the second meeting she may follow up on an earlier night, and any night she may ask
+    about you. Everything's shuffled, so nothing has a fixed place in the conversation.
     """
-    topics = [("occupation", her["occupation"]), ("value", her["value"]), ("peeve", her["peeve"])]
-    topics += [("interest", i) for i in her["interests"]]
-    if her["chrome"] != "indifferent":
-        topics.append(("chrome", her["chrome"]))
-    return random.sample(topics, data.DATE_ROUNDS)
+    told = {tuple(t) for t in her["discussed"]}
+    fresh = [t for t in trait_topics(her) if t not in told]
+    old = [t for t in trait_topics(her) if t in told]
+    random.shuffle(fresh)
+    random.shuffle(old)
+    extra = []
+    if (any(_recall(*t) for t in told) and random.random() < data.DATE_CALLBACK_CHANCE):
+        extra.append(_callback(her))
+    asks = questions(her, player)
+    if asks and random.random() < data.DATE_QUESTION_CHANCE:
+        extra.append(("question", random.choice(asks)))
+    topics = (fresh + old)[:data.DATE_ROUNDS - len(extra)] + extra
+    random.shuffle(topics)
+    return topics
 
 
-def _topic_entry(kind, key):
-    table = {"occupation": data.DATE_OCCUPATIONS, "interest": data.DATE_INTERESTS,
-             "value": data.DATE_VALUES, "peeve": data.DATE_PEEVES, "chrome": data.DATE_CHROME}[kind]
-    return table[key]
+def replies(topic):
+    return ANSWERS if topic[0] == "question" else KINDS
+
+
+def small_talk(her):
+    """What a noncommittal reply scores with her: intense women hate it, guarded ones like it
+    the first night."""
+    temperament = data.DATE_TEMPERAMENTS[her["temperament"]]
+    if her["times_met"] == 0 and "neutral_first" in temperament:
+        return temperament["neutral_first"]
+    return temperament.get("neutral", 0)
+
+
+def truth_lands(her, player, question):
+    """Whether telling her the truth wins her over. Depends on who she is and who you are."""
+    if question == "work":
+        return your_work(player) in data.DATE_CORPS[her["corps"]]["likes_work"]
+    if question == "chrome":
+        return data.DATE_CHROME[her["chrome"]]["likes_truth"]
+    return data.DATE_VALUES[her["value"]]["likes_trouble"]
+
+
+def score(her, player, topic, reply):
+    """+1, 0 or -1 for a reply. A lie always lands, for now."""
+    if reply in ("neutral", "dodge"):
+        return small_talk(her)
+    if reply == "truth":
+        return 1 if truth_lands(her, player, topic[1]) else -1
+    return {"good": 1, "bad": -1, "lie": 1}[reply]
+
+
+def catch_lies(her):
+    """Each lie she hasn't caught might surface now. Costs double with someone who values honesty."""
+    for question in list(her["lies"]):
+        if random.random() < data.DATE_LIE_CAUGHT:
+            her["lies"].remove(question)
+            cost = data.DATE_LIE_COST * (2 if her["value"] == "honesty" else 1)
+            her["affection"] -= cost
+            say(red(data.DATE_QUESTIONS[question]["caught"].format(name=her["name"])))
 
 
 # -- prompts -------------------------------------------------------------
@@ -103,9 +239,21 @@ def _situation(her, player):
             f"already know each other's names, so don't introduce yourselves.\n")
 
 
+# How the persona names each trait. Deeper ones only appear once they're unlocked, so the model
+# can't bring up her wound on the first night.
+_PERSONA = [("corps", "On the corps"), ("vice", "Your guilty pleasure"),
+            ("belief", "What you believe in"), ("origin", "Where you're from"),
+            ("dream", "What you want from life"), ("family", "Your family"),
+            ("wound", "What you carry, and only share with someone you trust")]
+
+
 def _persona(her, player):
     chrome = [cw["name"] for cw in data.CYBERWARE if player.has(cw["id"])]
     interests = " and ".join(data.DATE_INTERESTS[i]["label"] for i in her["interests"])
+    more = " ".join(f"{label}: {_entry(kind, her[TRAITS[kind][0]])['desc']}."
+                    for kind, label in _PERSONA if _unlocked(her, kind))
+    told = [_recall(k, key) or _entry(k, key).get("desc") for k, key in her["discussed"]]
+    told = f"You've already told them about: {'; '.join(told)}.\n" if told else ""
     return (
         f"You are {her['name']}, {her['age']}, {data.DATE_OCCUPATIONS[her['occupation']]['desc']} "
         f"in {data.CITY}, 2087, a cyberpunk megacity. {_situation(her, player)}"
@@ -113,7 +261,7 @@ def _persona(her, player):
         f"Your manner: {data.DATE_TEMPERAMENTS[her['temperament']]['desc']}. "
         f"You love {interests}. What matters most to you: {data.DATE_VALUES[her['value']]['desc']}. "
         f"You can't stand {data.DATE_PEEVES[her['peeve']]['desc']}. "
-        f"On cyberware: {data.DATE_CHROME[her['chrome']]['desc']}.\n"
+        f"On cyberware: {data.DATE_CHROME[her['chrome']]['desc']}. {more}\n{told}"
         f"The stranger: background {player.background}; job: {llm.job_desc(player)}; "
         f"chrome: {', '.join(chrome) or 'none visible'}.\n"
         "Speak casually, like a real person in a bar. Short sentences. No stage directions, "
@@ -121,28 +269,59 @@ def _persona(her, player):
     )
 
 
-def _topic_brief(kind, key):
-    """(what her line is about, what a good reply does, what a bad reply does) for the model."""
-    entry = _topic_entry(kind, key)
+_SMALL_TALK = "noncommittal small talk"
+
+
+def _brief(player, topic):
+    """(what her line does, {reply: what it does}) for the model."""
+    kind, key = topic
+    if kind == "callback":
+        was, _, wrong = key
+        return ("checking, lightly, whether the stranger remembers something you told them on "
+                "an earlier night",
+                {"good": f"correctly recalls {_recall(was, key[1])}",
+                 "bad": f"confidently misremembers it as {_recall(was, wrong)}",
+                 "neutral": _SMALL_TALK})
+    if kind == "question":
+        q = data.DATE_QUESTIONS[key]
+        return (f"asking about {q['about']}",
+                {"truth": f"answers honestly: {_truth_fact(player, key)}",
+                 "lie": f"a smooth lie: {q['lie_brief']}",
+                 "dodge": "politely dodges the question"})
+    entry = _entry(kind, key)
     if kind == "occupation":
-        return (f"your work as {entry['desc']}",
-                "shows genuine curiosity about or respect for your work",
-                "shrugs your work off or suggests you'd be better off doing something else")
+        return (f"steering to your work as {entry['desc']}",
+                {"good": "shows genuine curiosity about or respect for your work",
+                 "bad": "shrugs your work off or suggests you'd be better off doing something else",
+                 "neutral": _SMALL_TALK})
     if kind == "interest":
-        return (f"your love of {entry['label']}",
-                f"shows the stranger gets or shares your love of {entry['label']}",
-                f"dismisses {entry['label']} or prefers something else")
+        return (f"steering to your love of {entry['label']}",
+                {"good": f"shows the stranger gets or shares your love of {entry['label']}",
+                 "bad": f"dismisses {entry['label']} or prefers something else",
+                 "neutral": _SMALL_TALK})
     if kind == "value":
-        return (f"something that shows what you value most ({entry['desc']}), without naming it",
-                "shows the stranger shares that value",
-                "reveals the opposite priority")
+        return (f"steering to something that shows what you value most ({entry['desc']}), "
+                "without naming it",
+                {"good": "shows the stranger shares that value", "bad": "reveals the opposite priority",
+                 "neutral": _SMALL_TALK})
     if kind == "chrome":
-        return (f"cyberware ({entry['desc']})",
-                "matches how you feel about chrome",
-                "takes the opposite view of chrome")
-    return (f"a question or remark that shows whether the stranger is given to {entry['desc']}",
-            entry["good_desc"],
-            f"is a clear case of {entry['desc']}, the thing you can't stand")
+        return (f"steering to cyberware ({entry['desc']})",
+                {"good": "matches how you feel about chrome", "bad": "takes the opposite view of chrome",
+                 "neutral": _SMALL_TALK})
+    if kind == "peeve":
+        return (f"a question or remark that shows whether the stranger is given to {entry['desc']}",
+                {"good": entry["good_desc"],
+                 "bad": f"is a clear case of {entry['desc']}, the thing you can't stand",
+                 "neutral": _SMALL_TALK})
+    if kind == "wound":
+        return (f"opening up a little about something painful ({entry['desc']})",
+                {"good": "listens and makes room, without trying to fix it",
+                 "bad": "tries to fix it, pries for details, or brushes it off",
+                 "neutral": _SMALL_TALK})
+    return (f"steering to {entry['desc']}",
+            {"good": "shows genuine interest in it or sympathy with it",
+             "bad": "dismisses it or pushes the opposite view",
+             "neutral": _SMALL_TALK})
 
 
 def _transcript(history):
@@ -153,21 +332,20 @@ def _transcript(history):
 
 
 def round_messages(her, player, topic, history, last):
-    about, good, bad = _topic_brief(*topic)
+    about, briefs = _brief(player, topic)
     mood = {"good": "The stranger's last reply won you over a little.",
             "bad": "The stranger's last reply put you off a little.",
             "neutral": "The stranger's last reply was fine, if forgettable.",
             None: ""}[last]
+    shape = ", ".join(f'"{k}": "..."' for k in ("line", *briefs))
     user = (
         f"Conversation so far:\n{_transcript(history)}\n{mood}\n\n"
-        f"Write your next line (under 30 words), reacting naturally and steering to {about}. "
+        f"Write your next line (under 30 words), reacting naturally and {about}. "
         "Then write three things the stranger could say back, in first person, each under 20 words:\n"
-        f'- "good": {good}\n'
-        f'- "bad": {bad}\n'
-        '- "neutral": noncommittal small talk that neither pleases nor bothers you\n'
+        + "".join(f'- "{k}": {brief}\n' for k, brief in briefs.items()) +
         "All three must sound natural and friendly on the surface: don't make the bad one rude, "
         "the good one flattering, or any of them name your traits.\n"
-        'Answer with only a JSON object: {"line": "...", "good": "...", "bad": "...", "neutral": "..."}'
+        f"Answer with only a JSON object: {{{shape}}}"
     )
     return [{"role": "system", "content": _persona(her, player)}, {"role": "user", "content": user}]
 
@@ -213,8 +391,36 @@ def scene(her, spot):
     return text or canned
 
 
-def stock_round(topic):
-    entry = _topic_entry(*topic)
+def _chrome_names(player):
+    return ", ".join(cw["name"] for cw in data.CYBERWARE if player.has(cw["id"]))
+
+
+def _truth_fact(player, question):
+    q = data.DATE_QUESTIONS[question]
+    if question == "work":
+        return q["truth_brief"][your_work(player)].format(job=llm.job_desc(player))
+    return q["truth_brief"].format(chrome=_chrome_names(player))
+
+
+def stock_round(her, player, topic):
+    """Her line and every reply, from the tables. Always drawn, model or not."""
+    kind, key = topic
+    if kind == "callback":
+        was, right, wrong = key
+        reply = random.choice(data.DATE_CALLBACK["replies"])     # same sentence, different detail
+        return {"line": random.choice(data.DATE_CALLBACK["lines"]),
+                "good": reply.format(thing=_recall(was, right)),
+                "bad": reply.format(thing=_recall(was, wrong)),
+                "neutral": random.choice(data.DATE_NEUTRAL)}
+    if kind == "question":
+        q = data.DATE_QUESTIONS[key]
+        truths = q["truth"][your_work(player)] if key == "work" else q["truth"]
+        job = player.job["desc"] if player.job else ""
+        return {"line": random.choice(q["lines"]),
+                "truth": random.choice(truths).format(job=job, chrome=_chrome_names(player)),
+                "lie": random.choice(q["lie"]),
+                "dodge": random.choice(data.DATE_DODGE)}
+    entry = _entry(kind, key)
     i = random.randrange(len(entry["lines"]))     # good[i] and bad[i] answer lines[i]
     return {"line": entry["lines"][i], "good": entry["good"][i], "bad": entry["bad"][i],
             "neutral": random.choice(data.DATE_NEUTRAL)}
@@ -229,10 +435,11 @@ def voice_round(her, player, topic, history, last):
                                         max_tokens=300))
     if reply is None:
         return None
+    names = replies(topic)
     voiced = {"line": llm.sanitize(reply.get("line"), her["name"])}
-    voiced.update({k: llm.sanitize(reply.get(k), "You", limit=REPLY_LIMIT) for k in KINDS})
-    replies = [voiced[k].lower() for k in KINDS]
-    if not all(voiced.values()) or len(set(replies)) < len(KINDS):
+    voiced.update({k: llm.sanitize(reply.get(k), "You", limit=REPLY_LIMIT) for k in names})
+    said = [voiced[k].lower() for k in names]
+    if not all(voiced.values()) or len(set(said)) < len(names):
         return None
     return voiced
 
@@ -260,24 +467,39 @@ def outcome(net, walked_out, ready=False):
 def chat(player, her):
     """Play the conversation. Returns (net score, walked out?, [(her line, your reply)]).
 
-    The net score is +1 per good reply and -1 per bad one, -DATE_ROUNDS..DATE_ROUNDS.
+    Each reply scores +1, 0 or -1 (see score()), so the net is -DATE_ROUNDS..DATE_ROUNDS.
+    Afterwards she remembers what she told you, which questions you answered, and your lies.
     """
     net, history, last = 0, [], None
-    for topic in plan_topics(her):
-        stock = stock_round(topic)                  # drawn every round: keeps --seed stable
-        order = random.sample(KINDS, len(KINDS))
+    for topic in plan_topics(her, player):
+        names = replies(topic)
+        stock = stock_round(her, player, topic)     # drawn every round: keeps --seed stable
+        order = random.sample(names, len(names))
         reaction = {k: random.choice(data.DATE_REACTIONS[k]) for k in KINDS}
         beat = voice_round(her, player, topic, history, last) or stock
         say()
         _her_line(her, beat["line"])
-        kind = order[menu("You say:", [beat[k] for k in order])]
-        net += SCORE[kind]
-        say(dim(reaction[kind]))
-        history.append((beat["line"], beat[kind]))
-        last = kind
+        reply = order[menu("You say:", [beat[k] for k in order])]
+        points = score(her, player, topic, reply)
+        net += points
+        last = FEEL[points]
+        say(dim(reaction[last]))
+        history.append((beat["line"], beat[reply]))
+        _remember(her, topic, reply)
         if net <= data.DATE_WALKOUT and len(history) < data.DATE_ROUNDS:
             return net, True, history
     return net, False, history
+
+
+def _remember(her, topic, reply):
+    kind, key = topic
+    if kind == "question":
+        if reply != "dodge":
+            her["asked"].append(key)
+        if reply == "lie":
+            her["lies"].append(key)
+    elif kind != "callback" and [kind, key] not in her["discussed"]:
+        her["discussed"].append([kind, key])
 
 
 def present(player):
@@ -327,6 +549,7 @@ def meet(player, here):
         return 0
     if her["times_met"]:
         say(dim(f"You take the stool next to {her['name']}. She remembers your handle."))
+        catch_lies(her)
     else:
         say(dim(f"You slide onto the stool next to her and trade names over the noise. "
                 f"She's {her['name']}."))
@@ -354,18 +577,21 @@ def sheet(her):
     rows = [
         ("Look", f"{her['build']}, {her['hair']}, {her['eyes']}, {her['style']}, {her['feature']}"),
         ("Manner", f"{her['temperament']}: {data.DATE_TEMPERAMENTS[her['temperament']]['desc']}"),
-        ("Work", data.DATE_OCCUPATIONS[her["occupation"]]["desc"]),
-        ("Loves", " and ".join(data.DATE_INTERESTS[i]["label"] for i in her["interests"])),
-        ("Values", data.DATE_VALUES[her["value"]]["desc"]),
-        ("Can't stand", data.DATE_PEEVES[her["peeve"]]["desc"]),
-        ("Chrome", f"{her['chrome']}: {data.DATE_CHROME[her['chrome']]['desc']}"),
     ]
+    for kind, (field, table) in TRAITS.items():     # every trait, so new ones show up here too
+        ids = her[field] if isinstance(her[field], list) else [her[field]]
+        text = " and ".join(table[i].get("desc") or table[i]["label"] for i in ids)
+        rows.append((kind.capitalize(), f"{', '.join(ids)}: {text}"))
     status = f"{her['stage']}, met {her['times_met']}x, affection {her['affection']}"
     if her["last_outcome"] is not None:
         status += f"; last time {data.DATE_OUTCOMES[her['last_outcome']]['memory']}"
     if her["avoid_until"]:
         status += f"; avoiding you until day {her['avoid_until']}"
     rows.append(("Status", status))
+    if her["discussed"]:
+        rows.append(("Told you", ", ".join(f"{k} {i}" for k, i in her["discussed"])))
+    if her["lies"]:
+        rows.append(("Your lies", ", ".join(map(str, her["lies"]))))
     say(yellow(f"-- {her['name']}, {her['age']} " + "-" * 30))
     for label, text in rows:
         say(f"   {dim(label.ljust(12))}{text}")
@@ -403,6 +629,7 @@ def night(player):
     if her is None:
         return
     name = her["name"]
+    catch_lies(her)
     if player.day - her["last_seen_day"] >= data.REL_NEGLECT_DAYS:
         her["affection"] -= 1
         say(dim(random.choice(data.REL_NEGLECTED).format(name=name)))
